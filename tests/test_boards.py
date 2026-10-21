@@ -256,3 +256,35 @@ def test_tv_board_pages_and_drawing(app, tmp_path, monkeypatch):
         board.set_page(page)
         stage._tick()
         assert not stage.grab().isNull()
+
+
+def test_news_board_pages_pictures_and_ticker(app, monkeypatch):
+    from simple_info.core import news as nw
+    from simple_info.gui.boards.news import NewsBoard, wrap
+
+    from test_news import FEED
+
+    monkeypatch.setattr(nw, "fetch_feed", lambda key: nw.parse_feed(FEED, nw.BY_KEY[key].source))
+    monkeypatch.setattr(nw, "fetch_image", lambda url: None)
+    board = NewsBoard()
+    board.configure(Settings(news_feeds="bbc/scotland,sky/home,nope"))
+    assert board.keys == ["bbc/scotland", "sky/home"] and board.page_count() == 2
+    assert board.on_fetched(board.fetch_job()()) is True
+    latest = board.latest()
+    assert latest[0].title == "Search resumes for missing fishermen" and len(latest) == 3  # (no repeats across the feeds)
+    lines = wrap("one two three four five six seven eight nine ten", font_for_test(), 80, 2)
+    assert len(lines) == 2 and lines[-1].endswith("…")
+    stage = Stage([board])
+    stage.resize(800, 450)
+    for page in range(2):
+        board.set_page(page)
+        stage._tick()
+        assert not stage.grab().isNull()
+
+
+def font_for_test():
+    from PySide6.QtGui import QFont
+
+    f = QFont()
+    f.setPixelSize(20)
+    return f

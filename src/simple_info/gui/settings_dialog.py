@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from simple_info.core import currency as cx
+from simple_info.core import news as nw
 from simple_info.core import sports as sp
 from simple_info.core import trains as tr
 from simple_info.core import tv as tvmod
@@ -306,7 +307,26 @@ class SettingsDialog(QDialog):
         self._fill_channels([tvmod.Channel(c, c) for c in self._tv_chosen])  # until the full list is read
         self._runner.run(lambda: tvmod.read_channels(tvmod.guide_path(self._cache_dir)) if self._cache_dir else [],
                          self._fill_channels, lambda error: None)
-        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab):
+        # News
+        news_tab = self._tab("News")
+        news_box = QGroupBox("News board")
+        nl = QVBoxLayout(news_box)
+        self._feeds = QListWidget()
+        self._feeds.setDragDropMode(QAbstractItemView.InternalMove)
+        self._feeds.setMinimumHeight(300)
+        chosen = [k for k in settings.news_feeds.split(",") if k in nw.BY_KEY]
+        for key in chosen + [f.key for f in nw.FEEDS if f.key not in chosen]:
+            item = QListWidgetItem(nw.BY_KEY[key].name)
+            item.setData(Qt.UserRole, key)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+            item.setCheckState(Qt.Checked if key in chosen else Qt.Unchecked)
+            self._feeds.addItem(item)
+        nl.addWidget(self._feeds)
+        news_hint = QLabel("Each ticked feed gets a page of its own; drag to change the order.")
+        news_hint.setStyleSheet("color: gray;")
+        nl.addWidget(news_hint)
+        news_tab.addWidget(news_box)
+        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab, news_tab):
             tab.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -444,6 +464,8 @@ class SettingsDialog(QDialog):
                 self._competitions.item(i).data(Qt.UserRole) for i in range(self._competitions.count())
                 if self._competitions.item(i).checkState() == Qt.Checked),
             "page_seconds": self._page_seconds.value(),
+            "news_feeds": ",".join(self._feeds.item(i).data(Qt.UserRole) for i in range(self._feeds.count())
+                                   if self._feeds.item(i).checkState() == Qt.Checked),
             "tv_channels": ",".join(self._tv_list.item(i).data(Qt.UserRole) for i in range(self._tv_list.count())
                                     if self._tv_list.item(i).checkState() == Qt.Checked),
             "sport_favourites": sp.format_favourites(self._favourites),

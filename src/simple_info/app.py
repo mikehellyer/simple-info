@@ -50,6 +50,12 @@ def self_test() -> int:
         checks["tv guide parsing"] = tv.parse_time("20261020224000 +0100") is not None
     except Exception:
         checks["tv guide parsing"] = False
+    try:
+        from simple_info.core import news
+
+        checks["news parsing"] = news.parse_feed(b"<rss><channel><item><title>Hi</title></item></channel></rss>")[0].title == "Hi"
+    except Exception:
+        checks["news parsing"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)

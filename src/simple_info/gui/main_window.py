@@ -26,6 +26,7 @@ from simple_info.core.tv_keys import TvKeyReader
 from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
 from simple_info.gui.boards.base import Board
 from simple_info.gui.boards.currency import CurrencyBoard
+from simple_info.gui.boards.news import NewsBoard
 from simple_info.gui.boards.sport import SportBoard
 from simple_info.gui.boards.tv import TvBoard
 from simple_info.gui.boards.trains import TrainBoard
@@ -67,7 +68,8 @@ class MainWindow(QMainWindow):
         self._currency = CurrencyBoard(cache)
         self._sport = SportBoard()
         self._tv = TvBoard(cache)
-        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport, self._tv]
+        self._news = NewsBoard()
+        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport, self._tv, self._news]
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -298,7 +300,8 @@ class MainWindow(QMainWindow):
             "Exchange rates: European Central Bank, via <a href='https://frankfurter.dev/'>Frankfurter</a>; "
             "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br>"
             "Sport scores and tables from ESPN and BBC Sport.<br>"
-            "TV listings from the open-source <a href='https://github.com/dp247/Freeview-EPG'>Freeview EPG</a>.<br><br>"
+            "TV listings from the open-source <a href='https://github.com/dp247/Freeview-EPG'>Freeview EPG</a>.<br>"
+            "News from the BBC News, Sky News and Guardian RSS feeds.<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

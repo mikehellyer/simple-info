@@ -57,6 +57,17 @@ Boards so far:
    200 (regional BBC One, ITV and STV included). It starts with the main
    channels as seen in the north of Scotland.
 
+6. **News.** A page for each news feed you follow: the lead story with its
+   picture and summary, and the next six headlines with theirs, each
+   saying how long ago it was published. A red **LATEST** ticker along
+   the bottom runs through the newest headlines from all your feeds. It
+   sits in a newsroom, in front of a big wireframe globe that turns
+   slowly. Choose and order the feeds in Settings → News: BBC News (top
+   stories, UK, world, Scotland and its regions — including North East,
+   Orkney & Shetland — England, Wales, Northern Ireland, politics,
+   business, technology, science, health, entertainment), BBC Sport, Sky
+   News and The Guardian. They're checked every 10 minutes.
+
 ## Keys
 
 | Key | What it does |
@@ -69,7 +80,7 @@ Boards so far:
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
-| S | Settings: units, display, weather location, train station, currencies, sport, TV channels |
+| S | Settings: units, display, weather location, train station, currencies, sport, TV channels, news |
 | Right-click | All of the above as a menu |
 
 The bar of board names along the bottom shows up for a few seconds after
@@ -124,7 +135,7 @@ no sign-up is needed. If you have your own National Rail access token, put it
 in Settings and it will be passed along. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from
-[CoinGecko](https://www.coingecko.com/). TV listings are the open-source
+[CoinGecko](https://www.coingecko.com/). News comes from the BBC News, Sky News and Guardian RSS feeds. TV listings are the open-source
 [Freeview EPG](https://github.com/dp247/Freeview-EPG), rebuilt twice a day and
 downloaded at most every six hours. Sport comes from ESPN's public
 scoreboards, except Scottish League One and Two (which ESPN no longer

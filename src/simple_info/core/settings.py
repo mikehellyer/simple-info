@@ -52,6 +52,10 @@ class Settings:
     # comma-separated, in this order).
     tv_channels: str = "BBCOneScotHD.uk,BBCTwoHD.uk,STVNorth.uk,Channel4Scotland.uk,5.uk,BBCScotland.uk,BBCFourHD.uk,ITV2.uk,E4.uk,More4.uk,Film4.uk,BBCNews.uk"
 
+    # The news board: the feeds followed (keys from core.news, comma-separated,
+    # one page each in this order).
+    news_feeds: str = "bbc/top,bbc/scotland,bbc/ne-scotland,bbc/world"
+
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.
@@ -131,6 +135,10 @@ class SettingsStore:
 
         keys = [k for k in self.settings.sport_competitions.split(",") if k in BY_KEY]
         self.settings.sport_competitions = ",".join(dict.fromkeys(keys))
+        from simple_info.core.news import BY_KEY as NEWS_FEEDS
+
+        feeds = [k for k in self.settings.news_feeds.split(",") if k in NEWS_FEEDS]
+        self.settings.news_feeds = ",".join(dict.fromkeys(feeds))
         for name in ("train_station_crs", "train_filter_crs"):
             code = getattr(self.settings, name)
             setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")
