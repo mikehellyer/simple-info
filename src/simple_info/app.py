@@ -28,6 +28,13 @@ def self_test() -> int:
         checks["train parsing"] = board.services[0].expected_text == "Exp 10:05"
     except Exception:
         checks["train parsing"] = False
+    try:
+        from simple_info.core import currency
+
+        _, rates = currency.parse_series({"rates": {"2026-10-20": {"EUR": 1.19}}}, ["EUR"])
+        checks["currency parsing"] = currency.format_rate(rates[0].rate) == "1.1900"
+    except Exception:
+        checks["currency parsing"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)

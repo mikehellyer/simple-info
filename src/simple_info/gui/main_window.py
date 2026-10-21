@@ -25,6 +25,7 @@ from simple_info.core.tv_keys import ACTIONS as TV_KEY_ACTIONS
 from simple_info.core.tv_keys import TvKeyReader
 from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
 from simple_info.gui.boards.base import Board
+from simple_info.gui.boards.currency import CurrencyBoard
 from simple_info.gui.boards.trains import TrainBoard
 from simple_info.gui.boards.weather import WeatherBoard
 from simple_info.gui.settings_dialog import SettingsDialog
@@ -60,7 +61,8 @@ class MainWindow(QMainWindow):
         cache = Path(user_cache_dir("Simple-Info"))
         self._weather = WeatherBoard(cache)
         self._trains = TrainBoard()
-        self._boards: list[Board] = [self._weather, self._trains]
+        self._currency = CurrencyBoard(cache)
+        self._boards: list[Board] = [self._weather, self._trains, self._currency]
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -285,7 +287,9 @@ class MainWindow(QMainWindow):
             "An information board: switch between boards of live information, "
             "each with its own background so you can tell at a glance what it shows.<br><br>"
             "Weather data by <a href='https://open-meteo.com/'>Open-Meteo.com</a> (CC BY 4.0).<br>"
-            "Train times from National Rail Enquiries, via <a href='https://huxley2.azurewebsites.net/'>Huxley 2</a>.<br><br>"
+            "Train times from National Rail Enquiries, via <a href='https://huxley2.azurewebsites.net/'>Huxley 2</a>.<br>"
+            "Exchange rates: European Central Bank, via <a href='https://frankfurter.dev/'>Frankfurter</a>; "
+            "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

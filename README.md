@@ -21,7 +21,15 @@ Boards so far:
    (switching every 20 seconds). You can also show only the trains to or
    from another station. It refreshes every minute.
 
-Planned: sport results and tables, currency exchange rates, TV listings…
+3. **Currency.** What one pound (or whichever currency you choose) buys
+   abroad, on a banknote-green background with slowly turning guilloché
+   rosettes. Each currency gets a card with its rate, the change on the day
+   (green up, red down), a trend line for the last month, and the rate the
+   other way round. Bitcoin and Ethereum can join in with their prices and
+   their last week. In Settings you choose the base currency, which of
+   about 30 currencies to show (up to 12), and their order.
+
+Planned: sport results and tables, TV listings…
 
 ## Keys
 
@@ -34,7 +42,7 @@ Planned: sport results and tables, currency exchange rates, TV listings…
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
-| S | Settings: weather location, units, train station, board timing, display |
+| S | Settings: weather location, units, train station, currencies, board timing, display |
 | Right-click | All of the above as a menu |
 
 The bar of board names along the bottom shows up for a few seconds after
@@ -85,6 +93,9 @@ Weather by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Train
 times are National Rail Enquiries' live departure boards (Darwin), read
 through the free [Huxley 2](https://huxley2.azurewebsites.net/) service, so
 no sign-up is needed. If you have your own National Rail access token, put it
-in Settings and it will be passed along. Your rough
+in Settings and it will be passed along. Exchange rates are the European
+Central Bank's daily reference rates, read through
+[Frankfurter](https://frankfurter.dev/). Crypto prices come from
+[CoinGecko](https://www.coingecko.com/). Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a
 place in Settings.

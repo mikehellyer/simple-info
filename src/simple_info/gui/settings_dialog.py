@@ -1,7 +1,9 @@
 """Settings: where the weather is for, units, and how the boards behave."""
 from __future__ import annotations
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -12,6 +14,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QSpinBox,
@@ -19,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from simple_info.core import currency as cx
 from simple_info.core import trains as tr
 from simple_info.core import weather as wx
 from simple_info.core.settings import Settings
@@ -213,6 +218,33 @@ class SettingsDialog(QDialog):
         dl.addRow("", self._tv_remote)
         dl.addRow("Graphics", self._graphics)
         right.addWidget(display)
+
+        # Currency
+        money = QGroupBox("Currency board")
+        ml = QFormLayout(money)
+        self._base = QComboBox()
+        for code, (name, symbol) in cx.CURRENCIES.items():
+            self._base.addItem(f"{code} — {name}", code)
+        self._base.setCurrentIndex(max(0, self._base.findData(settings.currency_base)))
+        ml.addRow("What 1 of", self._base)
+        self._codes = QListWidget()
+        self._codes.setDragDropMode(QAbstractItemView.InternalMove)
+        self._codes.setMinimumHeight(180)
+        chosen = [c for c in settings.currency_codes.split(",") if c in cx.CURRENCIES]
+        for code in chosen + [c for c in cx.CURRENCIES if c not in chosen]:
+            item = QListWidgetItem(f"{code} — {cx.CURRENCIES[code][0]}")
+            item.setData(Qt.UserRole, code)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+            item.setCheckState(Qt.Checked if code in chosen else Qt.Unchecked)
+            self._codes.addItem(item)
+        ml.addRow("buys in", self._codes)
+        hint = QLabel("Tick up to 12; drag to change the order.")
+        hint.setStyleSheet("color: gray;")
+        ml.addRow("", hint)
+        self._crypto = QCheckBox("Bitcoin and Ethereum too")
+        self._crypto.setChecked(settings.currency_crypto)
+        ml.addRow("", self._crypto)
+        right.addWidget(money)
         right.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -253,6 +285,12 @@ class SettingsDialog(QDialog):
         else:
             self._place_label.setText("No place chosen yet — search above")
 
+    def _chosen_codes(self) -> list[str]:
+        base = self._base.currentData()
+        codes = [self._codes.item(i).data(Qt.UserRole) for i in range(self._codes.count())
+                 if self._codes.item(i).checkState() == Qt.Checked]
+        return [c for c in codes if c != base][:12]
+
     def values(self) -> dict:
         manual = self._manual.isChecked() and self._place is not None
         values = {
@@ -268,6 +306,9 @@ class SettingsDialog(QDialog):
             "graphics": self._graphics.currentData(),
             "train_mode": self._train_mode.currentData(),
             "rail_token": self._rail_token.text().strip(),
+            "currency_base": self._base.currentData(),
+            "currency_codes": ",".join(self._chosen_codes()),
+            "currency_crypto": self._crypto.isChecked(),
         }
         station, filter_ = self._station.station, self._train_filter.station
         values.update(train_station_name=station.name if station else "", train_station_crs=station.crs if station else "",

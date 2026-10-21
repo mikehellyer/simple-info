@@ -33,6 +33,13 @@ class Settings:
     # A National Rail (Darwin) access token, if you have one: not needed.
     rail_token: str = ""
 
+    # The currency board: what one of `currency_base` buys in each of
+    # `currency_codes` (comma-separated, shown in that order), and whether
+    # Bitcoin and Ethereum join in.
+    currency_base: str = "GBP"
+    currency_codes: str = "EUR,USD,CAD,AUD,JPY,CHF,NZD,SEK,NOK"
+    currency_crypto: bool = True
+
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.
@@ -97,6 +104,12 @@ class SettingsStore:
                 low, high = _RANGES[f.name]
                 value = max(low, min(high, value))
             setattr(self.settings, f.name, value)
+        from simple_info.core.currency import CURRENCIES
+
+        if self.settings.currency_base not in CURRENCIES:
+            self.settings.currency_base = "GBP"
+        codes = [c for c in self.settings.currency_codes.split(",") if c in CURRENCIES]
+        self.settings.currency_codes = ",".join(dict.fromkeys(codes))
         for name in ("train_station_crs", "train_filter_crs"):
             code = getattr(self.settings, name)
             setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")

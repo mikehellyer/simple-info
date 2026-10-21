@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 
@@ -133,3 +134,45 @@ def test_train_board_fetches_for_the_chosen_station(app, monkeypatch):
     for _ in range(3):
         stage._tick()
     assert not stage.grab().isNull()
+
+
+def test_currency_board_follows_the_settings(app, tmp_path, monkeypatch):
+    from simple_info.core import currency as cx
+    from simple_info.gui.boards.currency import CurrencyBoard
+
+    from test_currency import COINS, SERIES
+
+    asked = []
+
+    def fake_fetch(base, codes, crypto):
+        asked.append((base, codes, crypto))
+        _, rates = cx.parse_series(SERIES, codes)
+        return cx.Rates(base, "2026-10-20", rates, cx.parse_coins(COINS) if crypto else [], time.time())
+
+    monkeypatch.setattr(cx, "fetch", fake_fetch)
+    board = CurrencyBoard(tmp_path)
+    board.configure(Settings(currency_codes="USD,EUR,GBP"))  # (GBP is the base: left out)
+    assert board.on_fetched(board.fetch_job()()) is True
+    assert asked == [("GBP", ["USD", "EUR"], True)]
+    assert CurrencyBoard(tmp_path).rates is not None  # cached for the next start
+    board.configure(Settings(currency_base="EUR", currency_codes="USD"))
+    assert board.rates is None and board.due()  # a new base: the old rates no longer apply
+    assert board.on_fetched(None) is False and "connection" in board.status
+
+    board.on_fetched(fake_fetch("GBP", ["EUR", "USD"], True))
+    stage = Stage([board])
+    stage.resize(800, 450)
+    for _ in range(3):
+        stage._tick()
+    assert not stage.grab().isNull()
+
+
+def test_settings_tidy_the_currency_list(tmp_path):
+    import json
+
+    from simple_info.core.settings import SettingsStore
+
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"currency_base": "XXX", "currency_codes": "USD,nope,EUR,USD"}))
+    s = SettingsStore(path).settings
+    assert s.currency_base == "GBP" and s.currency_codes == "USD,EUR"
