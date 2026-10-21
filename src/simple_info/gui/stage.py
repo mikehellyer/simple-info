@@ -20,7 +20,7 @@ FADE_SECONDS = 1.0
 BAR_SECONDS = 4.0  # how long the board bar stays up after a switch or a mouse move
 CURSOR_HIDE_SECONDS = 3.0
 
-HINT = "◀ ▶  switch boards     F  full screen     S  settings     Right-click  menu"
+HINT = "◀ ▶  switch boards     ▲ ▼  turn pages     F  full screen     S  settings     Right-click  menu"
 
 
 def fit(rect: QRectF) -> tuple[float, float, float]:
@@ -44,6 +44,7 @@ class Stage(QWidget):
         self._fade_from: Optional[QPixmap] = None
         self._fade_left = 0.0
         self._on_board = 0.0  # seconds on the current board
+        self._on_page = 0.0  # seconds on the current page of a board with pages
         self.cycle = False
         self.cycle_seconds = 30.0
 
@@ -73,6 +74,7 @@ class Stage(QWidget):
     def show_board(self, index: int, fade: bool = True) -> None:
         index %= len(self.boards)
         self._on_board = 0.0
+        self._on_page = 0.0
         self._bar_left = BAR_SECONDS
         if index == self.index:
             self.update()
@@ -81,6 +83,7 @@ class Stage(QWidget):
             self._fade_from = self.grab()
             self._fade_left = FADE_SECONDS
         self.index = index
+        self.board.set_page(0)
         self._content_key = None
         self.board_changed.emit(self.board.key)
         self.update()
@@ -91,6 +94,19 @@ class Stage(QWidget):
                 self.show_board(i, fade)
                 return True
         return False
+
+    def turn_page(self, step: int = 1, fade: bool = True) -> bool:
+        """Show the current board's next (or previous) page, if it has more than one."""
+        board = self.board
+        if board.page_count() <= 1:
+            return False
+        if fade and self.isVisible() and self.width() > 0:
+            self._fade_from = self.grab()
+            self._fade_left = FADE_SECONDS
+        board.set_page(board.page + step)
+        self._on_page = 0.0
+        self.update()
+        return True
 
     def next_board(self) -> None:
         self.show_board(self.index + 1)
@@ -121,7 +137,17 @@ class Stage(QWidget):
         self._last = now
         self.board.step(dt)
         self._on_board += dt
-        if self.cycle and len(self.boards) > 1 and self._on_board >= self.cycle_seconds:
+        pages = self.board.page_count()
+        if pages > 1:
+            # a board with pages takes turns through them; moving on by
+            # itself, it shows them all first
+            self._on_page += dt
+            if self._on_page >= self.board.page_seconds:
+                if self.cycle and len(self.boards) > 1 and self.board.page == pages - 1:
+                    self.next_board()
+                else:
+                    self.turn_page(1)
+        elif self.cycle and len(self.boards) > 1 and self._on_board >= self.cycle_seconds:
             self.next_board()
         if self._fade_left > 0:
             self._fade_left -= dt

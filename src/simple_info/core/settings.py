@@ -40,6 +40,11 @@ class Settings:
     currency_codes: str = "EUR,USD,CAD,AUD,JPY,CHF,NZD,SEK,NOK"
     currency_crypto: bool = True
 
+    # The sport board: the competitions followed (ESPN keys, comma-separated,
+    # one page each in this order), and how long each page stays up.
+    sport_competitions: str = "soccer/eng.1,soccer/sco.1,baseball/mlb,cricket/international,rugby/180659,rugby/267979,rugby/270557"
+    sport_page_seconds: int = 20
+
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.
@@ -66,6 +71,7 @@ _CHOICES = {
 }
 _RANGES = {
     "cycle_seconds": (5, 3600),
+    "sport_page_seconds": (5, 600),
 }
 
 
@@ -110,6 +116,10 @@ class SettingsStore:
             self.settings.currency_base = "GBP"
         codes = [c for c in self.settings.currency_codes.split(",") if c in CURRENCIES]
         self.settings.currency_codes = ",".join(dict.fromkeys(codes))
+        from simple_info.core.sports import BY_KEY
+
+        keys = [k for k in self.settings.sport_competitions.split(",") if k in BY_KEY]
+        self.settings.sport_competitions = ",".join(dict.fromkeys(keys))
         for name in ("train_station_crs", "train_filter_crs"):
             code = getattr(self.settings, name)
             setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")

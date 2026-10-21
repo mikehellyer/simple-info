@@ -29,20 +29,38 @@ Boards so far:
    their last week. In Settings you choose the base currency, which of
    about 30 currencies to show (up to 12), and their order.
 
-Planned: sport results and tables, TV listings…
+4. **Sport.** Football, baseball, cricket and rugby. Each competition you
+   follow gets a page, and the pages take turns every 20 seconds (▲ ▼ turn
+   them by hand). Each page shows live games with the score and the minute
+   or innings, the latest results and the next fixtures, next to the
+   league table. Cricket shows scorecards instead, with the runs and
+   wickets, overs and how the match stands. Each sport has its own
+   floodlit stadium behind it: a football pitch, a rugby pitch with
+   H-shaped posts, a cricket oval with the wicket, or a baseball diamond.
+   While a game is on, its competition is checked every minute; the rest
+   every 10 minutes. Choose the competitions in Settings → Sport: the
+   Premier League, Championship, FA Cup, Scottish Premiership and
+   Championship, Champions and Europa League, La Liga, Bundesliga, Serie
+   A, Ligue 1, MLS, the World Cup, Major League Baseball, international
+   (or all) cricket, the Six Nations, Premiership Rugby, the URC,
+   Champions Cup, Rugby Championship, Top 14, Super Rugby and rugby
+   internationals.
+
+Planned: TV listings…
 
 ## Keys
 
 | Key | What it does |
 | --- | --- |
 | ◀ ▶, Page Up / Down, Space / Tab | Previous / next board |
+| ▲ ▼ | Previous / next page (on boards with pages, like Sport) |
 | 1–9 | Go to a board |
 | C | Move through the boards by itself (on / off) |
 | F / F11, double-click | Full screen (Esc to leave) |
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
-| S | Settings: weather location, units, train station, currencies, board timing, display |
+| S | Settings: units, display, weather location, train station, currencies, sport |
 | Right-click | All of the above as a menu |
 
 The bar of board names along the bottom shows up for a few seconds after
@@ -59,6 +77,7 @@ the TV over HDMI, so the TV's own remote works:
 | Button | Does |
 | --- | --- |
 | ◀ ▶ | Previous / next board |
+| ▲ ▼ | Previous / next page |
 | OK, Channel + | Next board |
 | Back / Exit, Channel − | Previous board |
 | 1–9 | Go to a board |
@@ -96,6 +115,7 @@ no sign-up is needed. If you have your own National Rail access token, put it
 in Settings and it will be passed along. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from
-[CoinGecko](https://www.coingecko.com/). Your rough
+[CoinGecko](https://www.coingecko.com/). Sport comes from ESPN's public
+scoreboards. Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a
 place in Settings.

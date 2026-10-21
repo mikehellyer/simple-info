@@ -176,3 +176,56 @@ def test_settings_tidy_the_currency_list(tmp_path):
     path.write_text(json.dumps({"currency_base": "XXX", "currency_codes": "USD,nope,EUR,USD"}))
     s = SettingsStore(path).settings
     assert s.currency_base == "GBP" and s.currency_codes == "USD,EUR"
+
+
+def test_sport_board_pages_and_refresh_rate(app, monkeypatch):
+    from simple_info.core import sports as sp
+    from simple_info.gui.boards import sport as sport_board
+
+    from test_sports import CRICKET, STANDINGS, board as scoreboard, event
+
+    def fake(key, cache=None):
+        if key.startswith("cricket"):
+            return sp.fetch_cricket(key, lambda url: CRICKET)
+        live = key == "soccer/eng.1"
+        payload = scoreboard([event("1", "2026-10-18T14:00Z", "in" if live else "post", "Celtic", "Hearts", "2", "1", "62'"),
+                              event("2", "2030-10-24T14:00Z", "pre", "Rangers", "Dundee")])
+        return sp.CompetitionData(key, sp.BY_KEY[key].name, sp.parse_scoreboard(payload),
+                                  sp.parse_standings(STANDINGS, sp.BY_KEY[key].sport), time.time())
+
+    monkeypatch.setattr(sp, "fetch_competition", fake)
+    b = sport_board.SportBoard()
+    b.configure(Settings(sport_competitions="soccer/sco.1,baseball/mlb"))
+    assert b.page_count() == 2
+    assert b.on_fetched(b.fetch_job()()) is True
+    assert b.refresh_seconds == sport_board.QUIET_REFRESH
+    b.configure(Settings(sport_competitions="soccer/eng.1,soccer/sco.1"))
+    b.on_fetched(b.fetch_job()())
+    assert b.refresh_seconds == sport_board.LIVE_REFRESH  # a game is on: check every minute
+    for d in b.data.values():
+        d.fetched_at = time.time()
+    asked = []
+    monkeypatch.setattr(sp, "fetch_competition", lambda key, cache=None: asked.append(key))
+    b.fetch_job()()
+    assert asked == ["soccer/eng.1"]  # …but only the competition with the game on
+
+    stage = Stage([b, _Plain()])
+    stage.resize(800, 450)
+    for _ in range(2):
+        stage._tick()
+    assert stage.turn_page(1) and b.page == 1
+    assert stage.turn_page(1) and b.page == 0
+    stage._on_page = 100.0  # time's up: on to the next page
+    stage._tick()
+    assert b.page == 1
+    stage.cycle, stage._on_page = True, 100.0  # moving on by itself: after the last page, the next board
+    stage._tick()
+    assert stage.index == 1
+    assert not stage.turn_page(1)  # (a board with one page has nothing to turn)
+    b.configure(Settings(sport_competitions="cricket/international,baseball/mlb"))
+    b.on_fetched(b.fetch_job()())
+    stage.show_board(0)
+    for page in range(2):
+        b.set_page(page)
+        stage._tick()
+        assert not stage.grab().isNull()

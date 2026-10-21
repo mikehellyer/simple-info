@@ -26,6 +26,7 @@ from simple_info.core.tv_keys import TvKeyReader
 from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
 from simple_info.gui.boards.base import Board
 from simple_info.gui.boards.currency import CurrencyBoard
+from simple_info.gui.boards.sport import SportBoard
 from simple_info.gui.boards.trains import TrainBoard
 from simple_info.gui.boards.weather import WeatherBoard
 from simple_info.gui.settings_dialog import SettingsDialog
@@ -62,7 +63,8 @@ class MainWindow(QMainWindow):
         self._weather = WeatherBoard(cache)
         self._trains = TrainBoard()
         self._currency = CurrencyBoard(cache)
-        self._boards: list[Board] = [self._weather, self._trains, self._currency]
+        self._sport = SportBoard()
+        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport]
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -108,6 +110,8 @@ class MainWindow(QMainWindow):
                                       lambda: self._once("next", self._stage.next_board))
         self._act_previous = self._action("Previous board", [k.Key_Left, k.Key_PageUp, "Shift+Tab", k.Key_ChannelDown],
                                           lambda: self._once("previous", self._stage.previous_board))
+        self._act_page_next = self._action("Next page", [k.Key_Down], lambda: self._once("page", lambda: self._stage.turn_page(1)))
+        self._act_page_previous = self._action("Previous page", [k.Key_Up], lambda: self._once("page", lambda: self._stage.turn_page(-1)))
         self._board_actions = []
         for i, board in enumerate(self._boards[:9]):
             self._board_actions.append(self._action(board.title, str(i + 1), partial(self._stage.show_board, i)))
@@ -129,7 +133,7 @@ class MainWindow(QMainWindow):
         boards = menu.addMenu("Boards")
         for action in self._board_actions:
             boards.addAction(action)
-        for action in (self._act_next, self._act_previous, self._act_cycle, None, self._act_full, self._act_refresh, None,
+        for action in (self._act_next, self._act_previous, self._act_page_next, self._act_page_previous, self._act_cycle, None, self._act_full, self._act_refresh, None,
                        self._act_preview_weather, self._act_preview_time, None, self._act_settings, self._act_about, self._act_quit):
             menu.addSeparator() if action is None else menu.addAction(action)
         menu.exec(self._stage.mapToGlobal(pos))
@@ -289,7 +293,8 @@ class MainWindow(QMainWindow):
             "Weather data by <a href='https://open-meteo.com/'>Open-Meteo.com</a> (CC BY 4.0).<br>"
             "Train times from National Rail Enquiries, via <a href='https://huxley2.azurewebsites.net/'>Huxley 2</a>.<br>"
             "Exchange rates: European Central Bank, via <a href='https://frankfurter.dev/'>Frankfurter</a>; "
-            "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br><br>"
+            "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br>"
+            "Sport scores and tables from ESPN.<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

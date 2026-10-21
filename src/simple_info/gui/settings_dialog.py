@@ -19,11 +19,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSpinBox,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from simple_info.core import currency as cx
+from simple_info.core import sports as sp
 from simple_info.core import trains as tr
 from simple_info.core import weather as wx
 from simple_info.core.settings import Settings
@@ -104,19 +106,20 @@ class SettingsDialog(QDialog):
     def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
-        self.setMinimumWidth(900)
+        self.setMinimumWidth(620)
         self._runner = runner
         self._place = (
             wx.Location(settings.location_name, settings.latitude, settings.longitude)
             if settings.location_mode == "manual" else None
         )
         outer = QVBoxLayout(self)
-        columns = QHBoxLayout()
-        outer.addLayout(columns)
-        layout = QVBoxLayout()  # the left-hand column
-        right = QVBoxLayout()
-        columns.addLayout(layout)
-        columns.addLayout(right)
+        self._tabs = QTabWidget()
+        outer.addWidget(self._tabs)
+        general = self._tab("General")
+        weather_tab = self._tab("Weather")
+        trains_tab = self._tab("Trains")
+        currency_tab = self._tab("Currency")
+        sport_tab = self._tab("Sport")
 
         # Location
         where = QGroupBox("Weather location")
@@ -143,7 +146,7 @@ class SettingsDialog(QDialog):
         self._place_label = QLabel()
         self._place_label.setStyleSheet("color: gray;")
         wl.addWidget(self._place_label)
-        layout.addWidget(where)
+        weather_tab.addWidget(where)
         (self._manual if self._place else self._auto).setChecked(True)
         self._results.hide()
         self._show_place()
@@ -164,7 +167,7 @@ class SettingsDialog(QDialog):
         ul.addRow("Temperature", self._temp)
         ul.addRow("Wind", self._wind)
         ul.addRow("", self._clock24)
-        layout.addWidget(units)
+        general.addWidget(units)
 
         # Trains
         trains = QGroupBox("Train board (stations in Great Britain)")
@@ -184,8 +187,7 @@ class SettingsDialog(QDialog):
         self._rail_token.setPlaceholderText("optional — not needed")
         self._rail_token.setToolTip("A National Rail (Darwin OpenLDBWS) access token, if you have your own")
         tl.addRow("National Rail token", self._rail_token)
-        layout.addWidget(trains)
-        layout.addStretch(1)
+        trains_tab.addWidget(trains)
 
         # Boards
         boards = QGroupBox("Boards")
@@ -198,7 +200,7 @@ class SettingsDialog(QDialog):
         self._cycle_seconds.setValue(settings.cycle_seconds)
         bl.addRow("", self._cycle)
         bl.addRow("Show each board for", self._cycle_seconds)
-        right.addWidget(boards)
+        general.addWidget(boards)
 
         # Display
         display = QGroupBox("Display")
@@ -217,7 +219,7 @@ class SettingsDialog(QDialog):
         dl.addRow("", self._keep_awake)
         dl.addRow("", self._tv_remote)
         dl.addRow("Graphics", self._graphics)
-        right.addWidget(display)
+        general.addWidget(display)
 
         # Currency
         money = QGroupBox("Currency board")
@@ -244,8 +246,35 @@ class SettingsDialog(QDialog):
         self._crypto = QCheckBox("Bitcoin and Ethereum too")
         self._crypto.setChecked(settings.currency_crypto)
         ml.addRow("", self._crypto)
-        right.addWidget(money)
-        right.addStretch(1)
+        currency_tab.addWidget(money)
+
+        # Sport
+        sport = QGroupBox("Sport board")
+        sl = QFormLayout(sport)
+        self._competitions = QListWidget()
+        self._competitions.setDragDropMode(QAbstractItemView.InternalMove)
+        self._competitions.setMinimumHeight(300)
+        chosen = [k for k in settings.sport_competitions.split(",") if k in sp.BY_KEY]
+        for key in chosen + [c.key for c in sp.COMPETITIONS if c.key not in chosen]:
+            comp = sp.BY_KEY[key]
+            item = QListWidgetItem(f"{comp.name}  ({sp.SPORT_NAMES[comp.sport].lower()})")
+            item.setData(Qt.UserRole, key)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+            item.setCheckState(Qt.Checked if key in chosen else Qt.Unchecked)
+            self._competitions.addItem(item)
+        sl.addRow("Follow", self._competitions)
+        hint = QLabel("Each ticked competition gets a page of its own; drag to change the order.")
+        hint.setStyleSheet("color: gray;")
+        hint.setWordWrap(True)
+        sl.addRow("", hint)
+        self._page_seconds = QSpinBox()
+        self._page_seconds.setRange(5, 600)
+        self._page_seconds.setSuffix(" seconds")
+        self._page_seconds.setValue(settings.sport_page_seconds)
+        sl.addRow("Turn the page every", self._page_seconds)
+        sport_tab.addWidget(sport)
+        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab):
+            tab.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
@@ -285,6 +314,12 @@ class SettingsDialog(QDialog):
         else:
             self._place_label.setText("No place chosen yet — search above")
 
+    def _tab(self, title: str) -> QVBoxLayout:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        self._tabs.addTab(page, title)
+        return layout
+
     def _chosen_codes(self) -> list[str]:
         base = self._base.currentData()
         codes = [self._codes.item(i).data(Qt.UserRole) for i in range(self._codes.count())
@@ -309,6 +344,10 @@ class SettingsDialog(QDialog):
             "currency_base": self._base.currentData(),
             "currency_codes": ",".join(self._chosen_codes()),
             "currency_crypto": self._crypto.isChecked(),
+            "sport_competitions": ",".join(
+                self._competitions.item(i).data(Qt.UserRole) for i in range(self._competitions.count())
+                if self._competitions.item(i).checkState() == Qt.Checked),
+            "sport_page_seconds": self._page_seconds.value(),
         }
         station, filter_ = self._station.station, self._train_filter.station
         values.update(train_station_name=station.name if station else "", train_station_crs=station.crs if station else "",

@@ -37,6 +37,7 @@ class Board:
         self.dirty = True  # the content needs redrawing
         self.fetching = False
         self._next_fetch = 0.0  # monotonic time; 0 = as soon as possible
+        self.page = 0
 
     # --- settings and data
 
@@ -66,6 +67,18 @@ class Board:
     def end_fetch(self, ok: bool, now: Optional[float] = None) -> None:
         self.fetching = False
         self._next_fetch = (now if now is not None else time.monotonic()) + (self.refresh_seconds if ok else self.retry_seconds)
+        self.dirty = True
+
+    # --- pages (a board with more than one takes turns through them)
+
+    page_seconds = 20.0
+
+    def page_count(self) -> int:
+        return 1
+
+    def set_page(self, page: int) -> None:
+        n = self.page_count()
+        self.page = page % n if n else 0
         self.dirty = True
 
     # --- drawing

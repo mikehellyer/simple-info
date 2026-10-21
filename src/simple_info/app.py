@@ -35,6 +35,15 @@ def self_test() -> int:
         checks["currency parsing"] = currency.format_rate(rates[0].rate) == "1.1900"
     except Exception:
         checks["currency parsing"] = False
+    try:
+        from simple_info.core import sports
+
+        match = sports.parse_event({"id": "1", "status": {"type": {"state": "post"}}, "competitions": [{"competitors": [
+            {"homeAway": "home", "score": "2", "team": {"displayName": "Celtic"}},
+            {"homeAway": "away", "score": "1", "team": {"displayName": "Hearts"}}]}]})
+        checks["sport parsing"] = match.home.name == "Celtic" and match.away.score == "1"
+    except Exception:
+        checks["sport parsing"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)
