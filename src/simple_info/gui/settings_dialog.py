@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
@@ -113,6 +114,7 @@ class SettingsDialog(QDialog):
             if settings.location_mode == "manual" else None
         )
         outer = QVBoxLayout(self)
+        outer.setSizeConstraint(QLayout.SetMinimumSize)  # never squeezed smaller than its contents
         self._tabs = QTabWidget()
         outer.addWidget(self._tabs)
         general = self._tab("General")
@@ -253,7 +255,7 @@ class SettingsDialog(QDialog):
         sl = QFormLayout(sport)
         self._competitions = QListWidget()
         self._competitions.setDragDropMode(QAbstractItemView.InternalMove)
-        self._competitions.setMinimumHeight(300)
+        self._competitions.setMinimumHeight(240)
         chosen = [k for k in settings.sport_competitions.split(",") if k in sp.BY_KEY]
         for key in chosen + [c.key for c in sp.COMPETITIONS if c.key not in chosen]:
             comp = sp.BY_KEY[key]
@@ -263,10 +265,19 @@ class SettingsDialog(QDialog):
             item.setCheckState(Qt.Checked if key in chosen else Qt.Unchecked)
             self._competitions.addItem(item)
         sl.addRow("Follow", self._competitions)
-        hint = QLabel("Each ticked competition gets a page of its own; drag to change the order.")
+        hint = QLabel("Each ticked competition gets a page of its own; drag to change the order.\n"
+                      "Pick a competition in the list to choose its favourite team, shown in gold.")
         hint.setStyleSheet("color: gray;")
-        hint.setWordWrap(True)
         sl.addRow("", hint)
+        # a favourite team for the competition picked in the list, shown in gold on its page
+        self._favourites = sp.parse_favourites(settings.sport_favourites)
+        self._team_lists: dict[str, list] = {}
+        self._favourite = QComboBox()
+        self._favourite.setEnabled(False)
+        self._favourite.currentIndexChanged.connect(self._on_favourite_chosen)
+        self._favourite_label = QLabel("Favourite team")
+        sl.addRow(self._favourite_label, self._favourite)
+        self._competitions.currentItemChanged.connect(lambda item, _: self._show_favourite(item))
         self._page_seconds = QSpinBox()
         self._page_seconds.setRange(5, 600)
         self._page_seconds.setSuffix(" seconds")
@@ -314,6 +325,52 @@ class SettingsDialog(QDialog):
         else:
             self._place_label.setText("No place chosen yet — search above")
 
+    def _show_favourite(self, item) -> None:
+        key = item.data(Qt.UserRole) if item is not None else None
+        self._favourite_key = key
+        if key is None:
+            return
+        self._favourite_label.setText(f"Favourite in {sp.BY_KEY[key].name}")
+        if key in self._team_lists:
+            self._fill_favourites(key)
+            return
+        self._favourite.blockSignals(True)
+        self._favourite.clear()
+        self._favourite.addItem("Finding the teams…", None)
+        self._favourite.blockSignals(False)
+        self._favourite.setEnabled(False)
+        self._runner.run(lambda: sp.fetch_teams(key), lambda teams: self._on_teams(key, teams), lambda error: self._on_teams(key, []))
+
+    def _on_teams(self, key: str, teams: list) -> None:
+        if teams:
+            self._team_lists[key] = teams
+        if key == self._favourite_key:
+            self._fill_favourites(key)
+
+    def _fill_favourites(self, key: str) -> None:
+        teams = self._team_lists.get(key, [])
+        self._favourite.blockSignals(True)
+        self._favourite.clear()
+        if not teams:
+            self._favourite.addItem("Couldn't get the teams (no connection?)", None)
+            self._favourite.setEnabled(False)
+        else:
+            self._favourite.addItem("None", "")
+            for team_id, name in teams:
+                self._favourite.addItem(name, team_id)
+            self._favourite.setCurrentIndex(max(0, self._favourite.findData(self._favourites.get(key, ""))))
+            self._favourite.setEnabled(True)
+        self._favourite.blockSignals(False)
+
+    def _on_favourite_chosen(self, index: int) -> None:
+        key, team = getattr(self, "_favourite_key", None), self._favourite.itemData(index)
+        if key is None or team is None:
+            return
+        if team:
+            self._favourites[key] = team
+        else:
+            self._favourites.pop(key, None)
+
     def _tab(self, title: str) -> QVBoxLayout:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -348,6 +405,7 @@ class SettingsDialog(QDialog):
                 self._competitions.item(i).data(Qt.UserRole) for i in range(self._competitions.count())
                 if self._competitions.item(i).checkState() == Qt.Checked),
             "sport_page_seconds": self._page_seconds.value(),
+            "sport_favourites": sp.format_favourites(self._favourites),
         }
         station, filter_ = self._station.station, self._train_filter.station
         values.update(train_station_name=station.name if station else "", train_station_crs=station.crs if station else "",

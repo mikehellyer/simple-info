@@ -80,12 +80,15 @@ class SportBoard(Board):
         self._cache: dict = {}  # finished match days and tables, so they aren't fetched again
         self._colours: dict[str, str] = {}  # team name -> colour, learned from the matches (tables don't say)
         self._asked: list[str] = []  # the competitions the last fetch was for
+        self.favourites: dict[str, str] = {}  # competition key -> favourite team's id (or, for cricket, name)
+        self._fav: set = set()  # the favourite on the page being drawn
 
     # --- settings and data
 
     def configure(self, settings: Settings) -> None:
         self.clock_24h = settings.clock_24h
         self.page_seconds = float(settings.sport_page_seconds)
+        self.favourites = sp.parse_favourites(settings.sport_favourites)
         keys = [k for k in settings.sport_competitions.split(",") if k in sp.BY_KEY]
         if keys != self.keys:
             self.keys = keys
@@ -154,6 +157,7 @@ class SportBoard(Board):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.TextAntialiasing)
         key, data = self.current()
+        self._fav = {self.favourites[key]} if key in self.favourites else set()
         # shade the top, so the title reads clearly against the floodlights
         p.fillRect(QRectF(-400, -400, W + 800, 555), vgrad(0, 155, (0, rgb(2, 4, 10, 225)), (0.68, rgb(2, 4, 10, 215)), (1, rgb(2, 4, 10, 0))))
         self._paint_header(p, now, key, data)
@@ -192,6 +196,11 @@ class SportBoard(Board):
             bits.append(f"updated {updated:%H:%M}" if self.clock_24h else f"updated {updated:%I:%M %p}".replace(" 0", " "))
         if data is not None and data.live:
             bits.append(f"{len(data.live)} live")
+        if data is not None and self._fav:
+            name = next((t.name for m in data.matches for t in (m.home, m.away) if t.is_one_of(self._fav)), "") or next(
+                (team.name for table in data.tables for _, team, _ in table.rows if team.is_one_of(self._fav)), "")
+            if name:
+                bits.append(f"★ {name}")
         if self.offline:
             bits.append("offline — showing the last scores")
         p.setFont(font(21))
@@ -261,7 +270,13 @@ class SportBoard(Board):
             y += h
 
     def _by_day(self, matches: list, now: datetime) -> list:
-        """Matches under a heading for each day."""
+        """Matches under a heading for each day, the favourite's first, so it's
+        never the one left off when a day has more than fits."""
+        days = {}
+        for m in matches:
+            days.setdefault(_day_label(m.local_start(), now), []).append(m)
+        matches = [m for group in days.values()
+                   for m in sorted(group, key=lambda m: not (m.home.is_one_of(self._fav) or m.away.is_one_of(self._fav)))]
         out, day = [], None
         for m in matches:
             label = _day_label(m.local_start(), now)
@@ -276,7 +291,17 @@ class SportBoard(Board):
         p.setBrush(colour)
         p.drawRoundedRect(rect, 3, 3)
 
+    def _highlight(self, p: QPainter, rect: QRectF) -> None:
+        """The gold band behind a favourite team's row."""
+        p.setPen(Qt.NoPen)
+        p.setBrush(alpha(GOLD, 46))
+        p.drawRoundedRect(rect, 8, 8)
+        p.setBrush(GOLD)
+        p.drawRoundedRect(QRectF(rect.left(), rect.top() + 3, 5, rect.height() - 6), 2.5, 2.5)
+
     def _match_row(self, p: QPainter, m: sp.Match, rect: QRectF) -> None:
+        if m.home.is_one_of(self._fav) or m.away.is_one_of(self._fav):
+            self._highlight(p, rect.adjusted(-14, 1, 14, -1))
         mid = rect.center().x()
         box = QRectF(mid - 62, rect.top() + 4, 124, rect.height() - 8)
         name_w = box.left() - rect.left() - 34
@@ -284,9 +309,10 @@ class SportBoard(Board):
         away_won = m.state == sp.DONE and m.away.winner
         # home: name right-aligned against the score, with a colour chip
         for team, won, side in ((m.home, home_won, -1), (m.away, away_won, 1)):
-            f = font(24, QFont.DemiBold if won else QFont.Normal)
+            fav = team.is_one_of(self._fav)
+            f = font(24, QFont.DemiBold if won or fav else QFont.Normal)
             p.setFont(f)
-            p.setPen(WHITE if (won or m.state != sp.DONE or not (home_won or away_won)) else DIM)
+            p.setPen(GOLD if fav else WHITE if (won or m.state != sp.DONE or not (home_won or away_won)) else DIM)
             name = QFontMetricsF(f).elidedText(team.name, Qt.ElideRight, name_w)
             if side < 0:
                 p.drawText(QRectF(rect.left(), rect.top(), name_w, rect.height()), Qt.AlignRight | Qt.AlignVCenter, name)
@@ -343,7 +369,10 @@ class SportBoard(Board):
             for pos, team, values in t.rows[:per_table]:
                 if y + row > inner.bottom() + 2:
                     break
-                if pos % 2 == 0:
+                fav = team.is_one_of(self._fav)
+                if fav:
+                    self._highlight(p, QRectF(inner.left() - 12, y, inner.width() + 24, row))
+                elif pos % 2 == 0:
                     p.setPen(Qt.NoPen)
                     p.setBrush(rgb(255, 255, 255, 12))
                     p.drawRect(QRectF(inner.left() - 8, y, inner.width() + 16, row))
@@ -351,15 +380,15 @@ class SportBoard(Board):
                 p.setPen(DIM)
                 p.drawText(QRectF(inner.left(), y, 28, row), Qt.AlignRight | Qt.AlignVCenter, str(pos))
                 self._chip(p, QRectF(inner.left() + 36, y + row / 2 - 7, 9, 14), self._team_colour(team))
-                p.setPen(WHITE)
-                f = font(19)
+                p.setPen(GOLD if fav else WHITE)
+                f = font(19, QFont.Bold if fav else QFont.Normal)
                 p.setFont(f)
                 p.drawText(QRectF(inner.left() + 52, y, team_w - 16, row), Qt.AlignLeft | Qt.AlignVCenter,
                            QFontMetricsF(f).elidedText(team.name, Qt.ElideRight, team_w - 16))
                 for i, v in enumerate(values):
                     last = i == len(values) - 1
                     p.setFont(font(19, QFont.Bold if last else QFont.Normal))
-                    p.setPen(WHITE if last else DIM)
+                    p.setPen(GOLD if fav else WHITE if last else DIM)
                     p.drawText(QRectF(inner.left() + 40 + team_w + i * col_w, y, col_w, row), Qt.AlignRight | Qt.AlignVCenter, v)
                 y += row
             y += 6
@@ -368,6 +397,7 @@ class SportBoard(Board):
 
     def _paint_cricket(self, p: QPainter, data: sp.CompetitionData, now: datetime) -> None:
         matches = data.live + data.results + data.fixtures
+        matches.sort(key=lambda m: not (m.home.is_one_of(self._fav) or m.away.is_one_of(self._fav)))  # the favourite's first
         area = QRectF(MATCHES.left(), MATCHES.top(), TABLE.right() - MATCHES.left(), MATCHES.height())
         if not matches:
             self._card(p, area)
@@ -384,6 +414,10 @@ class SportBoard(Board):
 
     def _cricket_card(self, p: QPainter, m: sp.Match, rect: QRectF, now: datetime) -> None:
         self._card(p, rect)
+        if m.home.is_one_of(self._fav) or m.away.is_one_of(self._fav):
+            p.setPen(QPen(GOLD, 3))
+            p.setBrush(alpha(GOLD, 26))
+            p.drawRoundedRect(rect.adjusted(1.5, 1.5, -1.5, -1.5), 17, 17)
         inner = rect.adjusted(20, 12, -20, -10)
         # the series and the kind of match
         badge = m.kind or ""
@@ -404,9 +438,10 @@ class SportBoard(Board):
         y = inner.top() + 30
         for team in (m.home, m.away):
             self._chip(p, QRectF(inner.left(), y + 9, 10, 16), self._team_colour(team))
-            f = font(23, QFont.DemiBold if team.winner else QFont.Normal)
+            fav = team.is_one_of(self._fav)
+            f = font(23, QFont.DemiBold if team.winner or fav else QFont.Normal)
             p.setFont(f)
-            p.setPen(WHITE)
+            p.setPen(GOLD if fav else WHITE)
             p.drawText(QRectF(inner.left() + 20, y, inner.width() * 0.45, 34), Qt.AlignLeft | Qt.AlignVCenter,
                        QFontMetricsF(f).elidedText(team.name, Qt.ElideRight, inner.width() * 0.45))
             sf = font(22, QFont.Bold)

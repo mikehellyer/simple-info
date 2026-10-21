@@ -124,3 +124,72 @@ def test_cricket_uses_full_names_and_keeps_internationals():
     assert len(sp.parse_cricket(CRICKET, international_only=False)) == 3
     data = sp.fetch_cricket("cricket/all", lambda url: CRICKET)
     assert data.name == "Cricket worldwide" and len(data.matches) == 3 and data.tables == []
+
+
+BBC_SCORES = {"eventGroups": [{"displayLabel": "Saturday 17th October", "secondaryGroups": [{"events": [
+    {"id": "e1", "startDateTime": "2026-10-17T14:00:00Z", "status": "PostEvent", "winner": "away",
+     "periodLabel": {"value": "FT"},
+     "home": {"fullName": "East Fife", "shortName": "East Fife", "urn": "urn:team:east-fife", "score": "0"},
+     "away": {"fullName": "Alloa Athletic", "shortName": "Alloa", "urn": "urn:team:alloa", "score": "3"}},
+    {"id": "e2", "startDateTime": "2026-10-21T19:45:00Z", "status": "MidEvent", "periodLabel": {"value": "62'"},
+     "home": {"fullName": "Cove Rangers", "urn": "urn:team:cove", "score": "1"},
+     "away": {"fullName": "Kelty Hearts", "urn": "urn:team:kelty", "score": "1"}},
+    {"id": "e3", "startDateTime": "2026-10-24T14:00:00Z", "status": "PreEvent", "periodLabel": {"value": "Scheduled"},
+     "home": {"fullName": "Queen of the South", "shortName": "QOTS", "urn": "urn:team:qots"},
+     "away": {"fullName": "Montrose", "urn": "urn:team:montrose"}},
+]}]}]}
+BBC_TABLE = {"tournaments": [{"name": "Scottish League One", "stages": [{"name": "Regular Season", "rounds": [{"participants": [
+    {"rank": 2, "name": "Alloa Athletic", "shortName": "Alloa", "urn": "urn:team:alloa", "matchesPlayed": 10, "wins": 6,
+     "draws": 2, "losses": 2, "goalDifference": 8, "points": 20},
+    {"rank": 1, "name": "Ross County", "shortName": "Ross County", "urn": "urn:team:ross", "matchesPlayed": 10, "wins": 9,
+     "draws": 1, "losses": 0, "goalDifference": 32, "points": 28},
+]}]}]}]}
+
+
+def test_bbc_scores_and_table():
+    done, live, pre = sp.parse_bbc_scores(BBC_SCORES)
+    assert (done.state, done.away.winner, done.away.score, done.detail) == (sp.DONE, True, "3", "FT")
+    assert (live.state, live.detail, live.home.id) == (sp.LIVE, "62'", "urn:team:cove")
+    assert pre.state == sp.PRE and pre.home.name == "Queen of the South"
+    (table,) = sp.parse_bbc_table(BBC_TABLE)
+    assert table.name == "Scottish League One" and table.columns == ["P", "W", "D", "L", "GD", "Pts"]
+    assert [(pos, team.name, values) for pos, team, values in table.rows] == [
+        (1, "Ross County", ["10", "9", "1", "0", "+32", "28"]), (2, "Alloa Athletic", ["10", "6", "2", "2", "+8", "20"])]
+
+
+def test_bbc_ranges_stay_within_the_ones_bbc_answers():
+    past, future = sp.bbc_ranges(date(2026, 10, 21))
+    assert past == [(date(2026, 10, 1), date(2026, 10, 21)), (date(2026, 9, 1), date(2026, 9, 30))]
+    assert future == [(date(2026, 10, 22), date(2026, 10, 31)), (date(2026, 11, 1), date(2026, 11, 30))]
+    past, future = sp.bbc_ranges(date(2026, 12, 31))  # the last day of a month: fixtures are all next month
+    assert future == [(date(2027, 1, 1), date(2027, 1, 31))]
+
+
+def test_scottish_league_one_comes_from_the_bbc():
+    asked = []
+
+    def get(url):
+        asked.append(url)
+        if "football-table" in url:
+            return BBC_TABLE
+        if "scores-fixtures" in url:
+            return BBC_SCORES
+        if url.endswith("/teams"):
+            return {"sports": [{"leagues": [{"teams": [{"team": {"displayName": "Alloa Athletic", "color": "F7AA25"}}]}]}]}
+        return None
+
+    data = sp.fetch_competition("soccer/sco.3", date(2026, 10, 21), {}, get)
+    assert data.name == "Scottish League One"
+    assert [m.id for m in data.results] == ["e1"] and [m.id for m in data.live] == ["e2"] and [m.id for m in data.fixtures] == ["e3"]
+    assert data.results[0].away.colour == "f7aa25" and data.tables[0].rows[1][1].colour == "f7aa25"
+    assert any("scottish-league-one" in u for u in asked) and not any("site.api.espn.com/apis/site/v2/sports/soccer/sco.3/scoreboard" in u for u in asked)
+    assert sp.fetch_teams("soccer/sco.3", lambda url: BBC_TABLE) == [("urn:team:alloa", "Alloa Athletic"), ("urn:team:ross", "Ross County")]
+    assert sp.fetch_competition("soccer/sco.4", date(2026, 10, 21), {}, lambda url: None) is None
+
+
+def test_favourites_round_trip():
+    favs = sp.parse_favourites("soccer/sco.1=256, cricket/international=England,nope=1,rugby/270557=")
+    assert favs == {"soccer/sco.1": "256", "cricket/international": "England"}
+    assert sp.parse_favourites(sp.format_favourites(favs)) == favs
+    team = sp.Team("Celtic", "CEL", id="256")
+    assert team.is_one_of({"256"}) and not team.is_one_of(set()) and sp.Team("England", "ENG").is_one_of({"England"})

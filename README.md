@@ -39,12 +39,14 @@ Boards so far:
    H-shaped posts, a cricket oval with the wicket, or a baseball diamond.
    While a game is on, its competition is checked every minute; the rest
    every 10 minutes. Choose the competitions in Settings → Sport: the
-   Premier League, Championship, FA Cup, Scottish Premiership and
-   Championship, Champions and Europa League, La Liga, Bundesliga, Serie
+   Premier League, Championship, FA Cup, Scottish Premiership,
+   Championship, League One and League Two, Champions and Europa League, La Liga, Bundesliga, Serie
    A, Ligue 1, MLS, the World Cup, Major League Baseball, international
    (or all) cricket, the Six Nations, Premiership Rugby, the URC,
    Champions Cup, Rugby Championship, Top 14, Super Rugby and rugby
-   internationals.
+   internationals. Pick a competition in that list to choose your
+   favourite team in it: its matches and its row in the table are
+   picked out in gold, and its games come first on each day.
 
 Planned: TV listings…
 
@@ -116,6 +118,7 @@ in Settings and it will be passed along. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from
 [CoinGecko](https://www.coingecko.com/). Sport comes from ESPN's public
-scoreboards. Your rough
+scoreboards, except Scottish League One and Two (which ESPN no longer
+keeps up to date): those come from BBC Sport. Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a
 place in Settings.

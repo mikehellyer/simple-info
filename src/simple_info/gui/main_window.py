@@ -294,7 +294,7 @@ class MainWindow(QMainWindow):
             "Train times from National Rail Enquiries, via <a href='https://huxley2.azurewebsites.net/'>Huxley 2</a>.<br>"
             "Exchange rates: European Central Bank, via <a href='https://frankfurter.dev/'>Frankfurter</a>; "
             "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br>"
-            "Sport scores and tables from ESPN.<br><br>"
+            "Sport scores and tables from ESPN and BBC Sport.<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

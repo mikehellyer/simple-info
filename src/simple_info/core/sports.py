@@ -7,6 +7,8 @@ for baseball, of the days it doesn't), so we fetch the latest couple of
 match days for results and the next couple for fixtures, plus the table.
 Cricket comes from ESPN's cricket score panel instead: what's on now and
 just finished, worldwide, which we narrow to internationals by default.
+ESPN stopped covering Scottish League One and Two in 2025, so those come
+from the feeds behind BBC Sport's scores and tables pages instead.
 
 Everything that touches the network returns None on failure rather than
 raising: the board keeps showing the last scores it had.
@@ -16,6 +18,7 @@ from __future__ import annotations
 import gzip
 import json
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -55,6 +58,8 @@ COMPETITIONS = [
     Competition("soccer/eng.fa", "FA Cup"),
     Competition("soccer/sco.1", "Scottish Premiership"),
     Competition("soccer/sco.2", "Scottish Championship"),
+    Competition("soccer/sco.3", "Scottish League One"),
+    Competition("soccer/sco.4", "Scottish League Two"),
     Competition("soccer/uefa.champions", "Champions League"),
     Competition("soccer/uefa.europa", "Europa League"),
     Competition("soccer/esp.1", "La Liga"),
@@ -84,10 +89,15 @@ DEFAULT_KEYS = ["soccer/eng.1", "soccer/sco.1", "baseball/mlb", "cricket/interna
 @dataclass
 class Team:
     name: str
-    short: str  # "CEL"
+    short: str  # "CEL" (not always unique: Dundee and Dundee United are both "DUN")
     colour: str = ""  # hex, "0046ff", or "" if ESPN hasn't one
     score: str = ""  # "2", or for cricket "241 & 98/5 (36 ov)"
     winner: bool = False
+    id: str = ""  # ESPN's id for the team, which is unique
+
+    def is_one_of(self, favourites) -> bool:
+        """Whether this is a favourite team: by id, or (cricket) by name."""
+        return bool(favourites) and (self.id in favourites or self.name in favourites)
 
 
 @dataclass
@@ -173,6 +183,7 @@ def parse_team(c: dict) -> Team:
         colour=_text(team.get("color")).lstrip("#").lower(),
         score=_text(c.get("score")),
         winner=bool(c.get("winner")),
+        id=_text(team.get("id")),
     )
 
 
@@ -298,6 +309,8 @@ def fetch_competition(key: str, today: Optional[date] = None, cache: Optional[di
     if comp.sport == CRICKET:
         return fetch_cricket(key, get)
     cache = cache if cache is not None else {}
+    if key in BBC_TOURNAMENTS:
+        return fetch_bbc(key, today or datetime.now().date(), cache, get)
     today = today or datetime.now(timezone.utc).date()
     base = f"{SITE_URL}/{comp.sport}/{comp.league}/scoreboard"
     current = get(base)
@@ -341,6 +354,53 @@ def fetch_competition(key: str, today: Optional[date] = None, cache: Optional[di
                            tables[1] if tables else [], time.time())
 
 
+# Cricket's national sides, to choose a favourite from (matched by name).
+CRICKET_NATIONS = ["Afghanistan", "Australia", "Bangladesh", "England", "India", "Ireland", "Netherlands", "New Zealand",
+                   "Pakistan", "Scotland", "South Africa", "Sri Lanka", "West Indies", "Zimbabwe"]
+
+
+def parse_teams(payload: dict) -> list[tuple[str, str]]:
+    """[(id, name)] from a league's team list, by name."""
+    teams = []
+    for sport in payload.get("sports") or []:
+        for league in sport.get("leagues") or []:
+            for entry in league.get("teams") or []:
+                team = (entry.get("team") or {}) if isinstance(entry, dict) else {}
+                if team.get("id") and team.get("displayName"):
+                    teams.append((_text(team["id"]), _text(team["displayName"])))
+    return sorted(teams, key=lambda t: t[1])
+
+
+def fetch_teams(key: str, get: Callable = _get_json) -> list[tuple[str, str]]:
+    """The teams in a competition, to choose a favourite from: [(id, name)].
+    Cricket's are the national sides, by name. Empty if they can't be had."""
+    comp = BY_KEY.get(key)
+    if comp is None:
+        return []
+    if comp.sport == CRICKET:
+        return [(n, n) for n in CRICKET_NATIONS]
+    if key in BBC_TOURNAMENTS:
+        tables = parse_bbc_table(get(bbc_table_url(key)) or {})
+        return sorted(((team.id, team.name) for t in tables for _, team, _ in t.rows), key=lambda t: t[1])
+    payload = get(f"{SITE_URL}/{comp.sport}/{comp.league}/teams")
+    return parse_teams(payload) if isinstance(payload, dict) else []
+
+
+def parse_favourites(text: str) -> dict[str, str]:
+    """"soccer/sco.1=257,cricket/international=England" -> {key: team id or name}."""
+    out = {}
+    for part in (text or "").split(","):
+        key, _, team = part.partition("=")
+        key = key.strip()
+        if key in BY_KEY and team.strip():
+            out[key] = team.strip()
+    return out
+
+
+def format_favourites(favourites: dict[str, str]) -> str:
+    return ",".join(f"{k}={v}" for k, v in favourites.items() if k in BY_KEY and v and "," not in v and "=" not in v)
+
+
 def parse_team_colours(payload: dict) -> dict[str, str]:
     """{abbreviation: colour} from a league's team list."""
     colours = {}
@@ -380,3 +440,163 @@ def fetch_cricket(key: str, get: Callable = _get_json) -> Optional[CompetitionDa
         return None
     comp = BY_KEY[key]
     return CompetitionData(key, comp.name, parse_cricket(payload, key.endswith("international")), [], time.time())
+
+
+# --- BBC Sport, for the leagues ESPN doesn't keep up to date
+
+BBC_TOURNAMENTS = {
+    "soccer/sco.3": "scottish-league-one",
+    "soccer/sco.4": "scottish-league-two",
+}
+BBC_URL = "https://web-cdn.api.bbci.co.uk/wc-poll-data/container"
+_BBC_STATES = {"PreEvent": PRE, "MidEvent": LIVE, "PostEvent": DONE}
+
+
+def _bbc_urn(key: str) -> str:
+    return f"urn:bbc:sportsdata:football:tournament:{BBC_TOURNAMENTS[key]}"
+
+
+def bbc_scores_url(key: str, start: date, end: date, today: date) -> str:
+    query = urllib.parse.urlencode({"selectedEndDate": end.isoformat(), "selectedStartDate": start.isoformat(),
+                                    "todayDate": today.isoformat(), "urn": _bbc_urn(key)})
+    return f"{BBC_URL}/sport-data-scores-fixtures?{query}"
+
+
+def bbc_table_url(key: str) -> str:
+    return f"{BBC_URL}/football-table?{urllib.parse.urlencode({'tournamentOrTeamUrn': _bbc_urn(key)})}"
+
+
+def _month_end(d: date) -> date:
+    following = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return following - timedelta(days=1)
+
+
+def bbc_ranges(today: date) -> tuple[list[tuple[date, date]], list[tuple[date, date]]]:
+    """The date ranges to ask for: (for results, for fixtures). BBC's feed
+    only answers the ranges its own pages ask for: a whole month, the
+    month so far, the rest of the month, or a single day."""
+    first = today.replace(day=1)
+    previous = (first - timedelta(days=1)).replace(day=1)
+    following = _month_end(today) + timedelta(days=1)
+    past = [(first, today), (previous, _month_end(previous))]
+    future = [(following, _month_end(following))] if today == _month_end(today) else [(today + timedelta(days=1), _month_end(today)), (following, _month_end(following))]
+    return past, future
+
+
+def _bbc_team(side: dict, winner: str, alignment: str) -> Team:
+    return Team(
+        name=_text(side.get("fullName") or side.get("shortName")) or "?",
+        short=_text(side.get("shortName"))[:5],
+        score=_text(side.get("score")),
+        winner=winner == alignment,
+        id=_text(side.get("urn") or side.get("id")),
+    )
+
+
+def parse_bbc_scores(payload: dict) -> list[Match]:
+    matches = []
+    for group in payload.get("eventGroups") or []:
+        for sub in group.get("secondaryGroups") or []:
+            for e in sub.get("events") or []:
+                if not isinstance(e, dict) or not e.get("home") or not e.get("away"):
+                    continue
+                status = _text(e.get("status"))
+                state = _BBC_STATES.get(status, PRE)
+                label = _text((e.get("periodLabel") or {}).get("value")) or _text((e.get("statusComment") or {}).get("value"))
+                if status not in _BBC_STATES and label:  # postponed, abandoned…
+                    state = DONE
+                winner = _text(e.get("winner"))
+                matches.append(Match(
+                    id=_text(e.get("id")),
+                    start=_text(e.get("startDateTime")),
+                    state=state,
+                    detail=label,
+                    home=_bbc_team(e["home"], winner, "home"),
+                    away=_bbc_team(e["away"], winner, "away"),
+                ))
+    return matches
+
+
+def parse_bbc_table(payload: dict) -> list[Table]:
+    tables = []
+    for tournament in payload.get("tournaments") or []:
+        for stage in tournament.get("stages") or []:
+            for rnd in stage.get("rounds") or []:
+                rows = []
+                for p in sorted(rnd.get("participants") or [], key=lambda p: p.get("rank") or 999):
+                    gd = p.get("goalDifference", 0) or 0
+                    team = Team(name=_text(p.get("name") or p.get("shortName")) or "?", short=_text(p.get("shortName"))[:5],
+                                id=_text(p.get("urn")))
+                    rows.append((int(p.get("rank") or len(rows) + 1), team,
+                                 [str(p.get("matchesPlayed", 0)), str(p.get("wins", 0)), str(p.get("draws", 0)),
+                                  str(p.get("losses", 0)), f"{gd:+d}" if gd else "0", str(p.get("points", 0))]))
+                if rows:
+                    tables.append(Table(_text(tournament.get("name")) or _text(stage.get("name")),
+                                        ["P", "W", "D", "L", "GD", "Pts"], rows))
+    return tables
+
+
+def fetch_bbc(key: str, today: date, cache: dict, get: Callable = _get_json) -> Optional[CompetitionData]:
+    past, future = bbc_ranges(today)
+    matches: dict[str, Match] = {}
+    got_any = False
+
+    def take(start: date, end: date) -> list[Match]:
+        nonlocal got_any
+        cached = cache.get((key, start, end))
+        if cached is not None:
+            got_any = True
+            return cached
+        payload = get(bbc_scores_url(key, start, end, today))
+        if not isinstance(payload, dict):
+            return []
+        got_any = True
+        found = parse_bbc_scores(payload)
+        if end < today and all(m.state == DONE for m in found):
+            cache[(key, start, end)] = found  # a past month: it won't change
+        return found
+
+    for i, (start, end) in enumerate(past):
+        found = take(start, end)
+        for m in found:
+            matches.setdefault(m.id, m)
+        if len({m.start[:10] for m in matches.values() if m.state == DONE}) >= PAST_DAYS:
+            break
+    for start, end in future:
+        for m in take(start, end):
+            matches.setdefault(m.id, m)
+        if len({m.start[:10] for m in matches.values() if m.state == PRE}) >= NEXT_DAYS:
+            break
+    if not got_any:
+        return None
+    # only the latest couple of match days of results, and the next couple of fixtures
+    done_days = sorted({m.start[:10] for m in matches.values() if m.state == DONE})[-PAST_DAYS:]
+    pre_days = sorted({m.start[:10] for m in matches.values() if m.state == PRE})[:NEXT_DAYS]
+    keep = [m for m in matches.values() if m.state == LIVE or (m.state == DONE and m.start[:10] in done_days)
+            or (m.state == PRE and m.start[:10] in pre_days)]
+    tables = cache.get((key, "table"))
+    if tables is None or time.time() - tables[0] > 30 * 60 or any(m.state == LIVE for m in keep):
+        payload = get(bbc_table_url(key))
+        if isinstance(payload, dict):
+            tables = (time.time(), parse_bbc_table(payload))
+            cache[(key, "table")] = tables
+    # colours: the BBC doesn't give them, ESPN's team list (by name) does
+    colours = cache.get((key, "colours"))
+    if colours is None:
+        payload = get(f"{SITE_URL}/soccer/{BY_KEY[key].league}/teams")
+        colours = {}
+        if isinstance(payload, dict):
+            for sport in payload.get("sports") or []:
+                for league in sport.get("leagues") or []:
+                    for entry in league.get("teams") or []:
+                        team = (entry.get("team") or {}) if isinstance(entry, dict) else {}
+                        if team.get("displayName") and team.get("color"):
+                            colours[_text(team["displayName"]).lower()] = _text(team["color"]).lstrip("#").lower()
+        cache[(key, "colours")] = colours
+    for m in keep:
+        for team in (m.home, m.away):
+            team.colour = team.colour or colours.get(team.name.lower(), "")
+    for t in (tables[1] if tables else []):
+        for _, team, _ in t.rows:
+            team.colour = team.colour or colours.get(team.name.lower(), "")
+    return CompetitionData(key, BY_KEY[key].name, keep, tables[1] if tables else [], time.time())
