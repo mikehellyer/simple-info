@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from simple_info.core import currency as cx
 from simple_info.core import sports as sp
 from simple_info.core import trains as tr
+from simple_info.core import tv as tvmod
 from simple_info.core import weather as wx
 from simple_info.core.settings import Settings
 from simple_info.gui.workers import BackgroundRunner
@@ -104,8 +105,9 @@ class StationPicker(QWidget):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None):
+    def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None, cache_dir=None):
         super().__init__(parent)
+        self._cache_dir = cache_dir  # where the TV guide is kept, for its list of channels
         self.setWindowTitle("Settings")
         self.setMinimumWidth(620)
         self._runner = runner
@@ -202,6 +204,14 @@ class SettingsDialog(QDialog):
         self._cycle_seconds.setValue(settings.cycle_seconds)
         bl.addRow("", self._cycle)
         bl.addRow("Show each board for", self._cycle_seconds)
+        self._page_seconds = QSpinBox()
+        self._page_seconds.setRange(5, 600)
+        self._page_seconds.setSuffix(" seconds")
+        self._page_seconds.setValue(settings.page_seconds)
+        bl.addRow("Turn pages every", self._page_seconds)
+        page_hint = QLabel("(on boards with more than one page, like Sport and TV)")
+        page_hint.setStyleSheet("color: gray;")
+        bl.addRow("", page_hint)
         general.addWidget(boards)
 
         # Display
@@ -278,13 +288,25 @@ class SettingsDialog(QDialog):
         self._favourite_label = QLabel("Favourite team")
         sl.addRow(self._favourite_label, self._favourite)
         self._competitions.currentItemChanged.connect(lambda item, _: self._show_favourite(item))
-        self._page_seconds = QSpinBox()
-        self._page_seconds.setRange(5, 600)
-        self._page_seconds.setSuffix(" seconds")
-        self._page_seconds.setValue(settings.sport_page_seconds)
-        sl.addRow("Turn the page every", self._page_seconds)
         sport_tab.addWidget(sport)
-        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab):
+
+        # TV
+        tv_tab = self._tab("TV")
+        tv_box = QGroupBox("TV board (Freeview channels)")
+        tvl = QVBoxLayout(tv_box)
+        self._tv_list = QListWidget()
+        self._tv_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self._tv_list.setMinimumHeight(300)
+        tvl.addWidget(self._tv_list)
+        tv_hint = QLabel("Tick the channels to show, and drag them into your order; ten fit on a page.")
+        tv_hint.setStyleSheet("color: gray;")
+        tvl.addWidget(tv_hint)
+        tv_tab.addWidget(tv_box)
+        self._tv_chosen = [c for c in settings.tv_channels.split(",") if c]
+        self._fill_channels([tvmod.Channel(c, c) for c in self._tv_chosen])  # until the full list is read
+        self._runner.run(lambda: tvmod.read_channels(tvmod.guide_path(self._cache_dir)) if self._cache_dir else [],
+                         self._fill_channels, lambda error: None)
+        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab):
             tab.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -371,6 +393,23 @@ class SettingsDialog(QDialog):
         else:
             self._favourites.pop(key, None)
 
+    def _fill_channels(self, channels: list) -> None:
+        if not channels:
+            return
+        # keep any ticks and order the viewer has already changed
+        if self._tv_list.count():
+            self._tv_chosen = [self._tv_list.item(i).data(Qt.UserRole) for i in range(self._tv_list.count())
+                               if self._tv_list.item(i).checkState() == Qt.Checked]
+        by_id = {c.id: c for c in channels}
+        self._tv_list.clear()
+        for cid in self._tv_chosen + [c.id for c in channels if c.id not in self._tv_chosen]:
+            channel = by_id.get(cid, tvmod.Channel(cid, cid))
+            item = QListWidgetItem(channel.short_name if channel.name != cid else cid)
+            item.setData(Qt.UserRole, cid)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+            item.setCheckState(Qt.Checked if cid in self._tv_chosen else Qt.Unchecked)
+            self._tv_list.addItem(item)
+
     def _tab(self, title: str) -> QVBoxLayout:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -404,7 +443,9 @@ class SettingsDialog(QDialog):
             "sport_competitions": ",".join(
                 self._competitions.item(i).data(Qt.UserRole) for i in range(self._competitions.count())
                 if self._competitions.item(i).checkState() == Qt.Checked),
-            "sport_page_seconds": self._page_seconds.value(),
+            "page_seconds": self._page_seconds.value(),
+            "tv_channels": ",".join(self._tv_list.item(i).data(Qt.UserRole) for i in range(self._tv_list.count())
+                                    if self._tv_list.item(i).checkState() == Qt.Checked),
             "sport_favourites": sp.format_favourites(self._favourites),
         }
         station, filter_ = self._station.station, self._train_filter.station

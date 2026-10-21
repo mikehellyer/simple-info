@@ -27,6 +27,7 @@ from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
 from simple_info.gui.boards.base import Board
 from simple_info.gui.boards.currency import CurrencyBoard
 from simple_info.gui.boards.sport import SportBoard
+from simple_info.gui.boards.tv import TvBoard
 from simple_info.gui.boards.trains import TrainBoard
 from simple_info.gui.boards.weather import WeatherBoard
 from simple_info.gui.settings_dialog import SettingsDialog
@@ -60,11 +61,13 @@ class MainWindow(QMainWindow):
         self._tv_key_timer.timeout.connect(self._poll_tv_keys)
 
         cache = Path(user_cache_dir("Simple-Info"))
+        self._cache = cache
         self._weather = WeatherBoard(cache)
         self._trains = TrainBoard()
         self._currency = CurrencyBoard(cache)
         self._sport = SportBoard()
-        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport]
+        self._tv = TvBoard(cache)
+        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport, self._tv]
 
         central = QWidget()
         layout = QVBoxLayout(central)
@@ -250,7 +253,7 @@ class MainWindow(QMainWindow):
         self._apply_tv_remote()
 
     def _open_settings(self) -> None:
-        dialog = SettingsDialog(self._store.settings, self._runner, self)
+        dialog = SettingsDialog(self._store.settings, self._runner, self, cache_dir=self._cache)
         if dialog.exec():
             self._store.update(**dialog.values())
         self._apply_settings()
@@ -294,7 +297,8 @@ class MainWindow(QMainWindow):
             "Train times from National Rail Enquiries, via <a href='https://huxley2.azurewebsites.net/'>Huxley 2</a>.<br>"
             "Exchange rates: European Central Bank, via <a href='https://frankfurter.dev/'>Frankfurter</a>; "
             "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br>"
-            "Sport scores and tables from ESPN and BBC Sport.<br><br>"
+            "Sport scores and tables from ESPN and BBC Sport.<br>"
+            "TV listings from the open-source <a href='https://github.com/dp247/Freeview-EPG'>Freeview EPG</a>.<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

@@ -48,7 +48,14 @@ Boards so far:
    favourite team in it: its matches and its row in the table are
    picked out in gold, and its games come first on each day.
 
-Planned: TV listings…
+5. **TV.** A TV guide grid for the next two and a half hours on your
+   Freeview channels. A red line marks "now", and what's on now is lit up
+   with a bar showing how far through it is. It sits on the glow of an old
+   television set: soft colour bars, scanlines and the slow roll of the
+   picture. Ten channels fit on a page; more go onto further pages, which
+   take turns. Choose and order the channels in Settings → TV, from about
+   200 (regional BBC One, ITV and STV included). It starts with the main
+   channels as seen in the north of Scotland.
 
 ## Keys
 
@@ -62,7 +69,7 @@ Planned: TV listings…
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
-| S | Settings: units, display, weather location, train station, currencies, sport |
+| S | Settings: units, display, weather location, train station, currencies, sport, TV channels |
 | Right-click | All of the above as a menu |
 
 The bar of board names along the bottom shows up for a few seconds after
@@ -117,7 +124,9 @@ no sign-up is needed. If you have your own National Rail access token, put it
 in Settings and it will be passed along. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from
-[CoinGecko](https://www.coingecko.com/). Sport comes from ESPN's public
+[CoinGecko](https://www.coingecko.com/). TV listings are the open-source
+[Freeview EPG](https://github.com/dp247/Freeview-EPG), rebuilt twice a day and
+downloaded at most every six hours. Sport comes from ESPN's public
 scoreboards, except Scottish League One and Two (which ESPN no longer
 keeps up to date): those come from BBC Sport. Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a

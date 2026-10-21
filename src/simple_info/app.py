@@ -44,6 +44,12 @@ def self_test() -> int:
         checks["sport parsing"] = match.home.name == "Celtic" and match.away.score == "1"
     except Exception:
         checks["sport parsing"] = False
+    try:
+        from simple_info.core import tv
+
+        checks["tv guide parsing"] = tv.parse_time("20261020224000 +0100") is not None
+    except Exception:
+        checks["tv guide parsing"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)

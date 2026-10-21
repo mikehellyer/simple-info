@@ -87,7 +87,7 @@ class SportBoard(Board):
 
     def configure(self, settings: Settings) -> None:
         self.clock_24h = settings.clock_24h
-        self.page_seconds = float(settings.sport_page_seconds)
+        self.page_seconds = float(settings.page_seconds)
         self.favourites = sp.parse_favourites(settings.sport_favourites)
         keys = [k for k in settings.sport_competitions.split(",") if k in sp.BY_KEY]
         if keys != self.keys:

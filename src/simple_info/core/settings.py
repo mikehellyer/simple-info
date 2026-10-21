@@ -43,17 +43,22 @@ class Settings:
     # The sport board: the competitions followed (ESPN keys, comma-separated,
     # one page each in this order), and how long each page stays up.
     sport_competitions: str = "soccer/eng.1,soccer/sco.1,baseball/mlb,cricket/international,rugby/180659,rugby/267979,rugby/270557"
-    sport_page_seconds: int = 20
     # A favourite team for each competition, to pick out on its page:
     # "soccer/sco.1=257,cricket/international=Scotland" (ESPN team ids;
     # cricket's national sides by name).
     sport_favourites: str = ""
+
+    # The TV board: the channels on it (ids from the Freeview guide,
+    # comma-separated, in this order).
+    tv_channels: str = "BBCOneScotHD.uk,BBCTwoHD.uk,STVNorth.uk,Channel4Scotland.uk,5.uk,BBCScotland.uk,BBCFourHD.uk,ITV2.uk,E4.uk,More4.uk,Film4.uk,BBCNews.uk"
 
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.
     cycle_boards: bool = False
     cycle_seconds: int = 30
+    # How long each page stays up on boards with more than one (sport, TV).
+    page_seconds: int = 20
 
     # Stop the screensaver, screen blanking and lock while the board is open.
     keep_awake: bool = True
@@ -75,7 +80,7 @@ _CHOICES = {
 }
 _RANGES = {
     "cycle_seconds": (5, 3600),
-    "sport_page_seconds": (5, 600),
+    "page_seconds": (5, 600),
 }
 
 

@@ -229,3 +229,30 @@ def test_sport_board_pages_and_refresh_rate(app, monkeypatch):
         b.set_page(page)
         stage._tick()
         assert not stage.grab().isNull()
+
+
+def test_tv_board_pages_and_drawing(app, tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    from simple_info.core import tv
+    from simple_info.gui.boards.tv import TvBoard, badge_colour
+
+    from test_tv import GUIDE
+
+    (tmp_path / "tv-guide.xml").write_bytes(GUIDE)
+    monkeypatch.setattr(tv, "download_guide", lambda path, **k: path.exists())
+    board = TvBoard(tmp_path)
+    ids = ["BBCOneScotHD.uk", "STVNorth.uk"] + [f"X{i}.uk" for i in range(10)]
+    board.configure(Settings(tv_channels=",".join(ids)))
+    assert board.page_count() == 2
+    now = datetime(2026, 10, 21, 13, 40, tzinfo=timezone.utc)
+    assert board.on_fetched(tv.fetch(tmp_path, ids, now)) is True
+    assert [c.id for c in board.listings.channels] == ["BBCOneScotHD.uk", "STVNorth.uk"]
+    assert board.on_fetched(None) is False and board.listings is not None
+    assert badge_colour("BBC One Scotland") != badge_colour("STV North")
+    stage = Stage([board])
+    stage.resize(800, 450)
+    for page in range(2):
+        board.set_page(page)
+        stage._tick()
+        assert not stage.grab().isNull()
