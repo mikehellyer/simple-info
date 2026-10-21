@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Simple-Info
+Comment=An information board: weather and more, at a glance
+Exec=/opt/simple-info/Simple-Info
+Icon=simple-info
+Terminal=false
+Categories=Utility;Clock;

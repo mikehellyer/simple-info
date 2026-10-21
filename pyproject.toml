@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simple-info"
+version = "0.1.0"
+description = "An information board: weather and more, at a glance"
+authors = [{ name = "Mike Hellyer" }]
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6",
+    "platformdirs",
+    "certifi",
+    "jeepney; sys_platform == 'linux'",  # D-Bus, to keep the screen awake
+]
+
+[project.scripts]
+simple-info = "simple_info.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"simple_info.gui" = ["resources/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]

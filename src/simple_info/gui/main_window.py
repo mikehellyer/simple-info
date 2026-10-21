@@ -1,0 +1,354 @@
+"""The main window: the stage, the update banner, keyboard shortcuts, the
+right-click menu, and keeping every board's data up to date."""
+from __future__ import annotations
+
+import sys
+import time
+from functools import partial
+from pathlib import Path
+from typing import Optional
+
+from platformdirs import user_cache_dir
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox, QVBoxLayout, QWidget
+
+from simple_info import __version__
+from simple_info.core import cec
+from simple_info.core import weather as wx
+from simple_info.core.diagnostics import log_event
+from simple_info.core.keep_awake import KeepAwake
+from simple_info.core.platform_info import is_raspberry_pi
+from simple_info.core.self_update import download_asset, find_asset_for_this_platform, launch_installer
+from simple_info.core.settings import SettingsStore
+from simple_info.core.tv_keys import ACTIONS as TV_KEY_ACTIONS
+from simple_info.core.tv_keys import TvKeyReader
+from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
+from simple_info.gui.boards.base import Board
+from simple_info.gui.boards.weather import WeatherBoard
+from simple_info.gui.settings_dialog import SettingsDialog
+from simple_info.gui.stage import Stage
+from simple_info.gui.update_banner import UpdateBanner
+from simple_info.gui.workers import BackgroundRunner
+
+UPDATE_OWNER = "mikehellyer"
+UPDATE_REPO = "simple-info"
+BACKGROUND_JOIN_TIMEOUT_MS = (max(API_TIMEOUT_SECONDS, wx.TIMEOUT_SECONDS) + 1) * 1000
+ICON_PATH = Path(__file__).parent / "resources" / "icon.png"
+SERVICE_MS = 1000  # how often to see whether a board wants new data
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Simple-Info")
+        self.setWindowIcon(QIcon(str(ICON_PATH)))
+        self.resize(1280, 760)
+
+        self._store = SettingsStore()
+        self._runner = BackgroundRunner(self)
+        self._keep_awake = KeepAwake()
+        self._pending_update = None
+        self._last_action: dict[str, float] = {}
+        self._tv_keys: Optional[TvKeyReader] = None
+        self._cec_timer = QTimer(self)
+        self._cec_timer.timeout.connect(self._register_tv_remote)
+        self._tv_key_timer = QTimer(self)
+        self._tv_key_timer.timeout.connect(self._poll_tv_keys)
+
+        cache = Path(user_cache_dir("Simple-Info"))
+        self._weather = WeatherBoard(cache)
+        self._boards: list[Board] = [self._weather]
+
+        central = QWidget()
+        layout = QVBoxLayout(central)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self._update_banner = UpdateBanner()
+        self._update_banner.update_clicked.connect(self._start_update)
+        layout.addWidget(self._update_banner)
+        self._stage = Stage(self._boards)
+        self._stage.setContextMenuPolicy(Qt.CustomContextMenu)
+        self._stage.customContextMenuRequested.connect(self._show_menu)
+        self._stage.board_changed.connect(lambda key: self._store.update(board=key))
+        layout.addWidget(self._stage, 1)
+        self.setCentralWidget(central)
+
+        self._build_actions()
+        self._apply_settings()
+        self._stage.show_key(self._store.settings.board, fade=False)
+
+        self._service_timer = QTimer(self)
+        self._service_timer.timeout.connect(self._service_boards)
+        self._service_timer.start(SERVICE_MS)
+        self._service_boards()
+        self._check_for_updates()
+
+    # --- actions and the menu
+
+    def _action(self, text: str, keys, slot, checkable: bool = False) -> QAction:
+        action = QAction(text, self)
+        if keys:
+            action.setShortcuts([QKeySequence(k) for k in (keys if isinstance(keys, (list, tuple)) else [keys])])
+        action.setShortcutContext(Qt.WindowShortcut)
+        action.setCheckable(checkable)
+        action.triggered.connect(slot)
+        self.addAction(action)
+        return action
+
+    def _build_actions(self) -> None:
+        # Besides the keyboard, a TV remote (over HDMI-CEC) or a Bluetooth
+        # clicker sends arrows, OK, back, channel up/down and the coloured buttons.
+        k = Qt.Key
+        self._act_next = self._action("Next board", [k.Key_Right, k.Key_PageDown, "Space", "Tab", k.Key_ChannelUp],
+                                      lambda: self._once("next", self._stage.next_board))
+        self._act_previous = self._action("Previous board", [k.Key_Left, k.Key_PageUp, "Shift+Tab", k.Key_ChannelDown],
+                                          lambda: self._once("previous", self._stage.previous_board))
+        self._board_actions = []
+        for i, board in enumerate(self._boards[:9]):
+            self._board_actions.append(self._action(board.title, str(i + 1), partial(self._stage.show_board, i)))
+        self._act_cycle = self._action("Move through the boards by itself", ["C", k.Key_Red],
+                                       lambda: self._once("cycle", self._toggle_cycle), checkable=True)
+        self._act_full = self._action("Full screen", ["F", "F11"], self._toggle_full_screen, checkable=True)
+        self._act_refresh = self._action("Refresh now", ["R", k.Key_Green], lambda: self._once("refresh", self._refresh_now))
+        self._act_preview_weather = self._action("Preview another weather", ["P", k.Key_Yellow],
+                                                 lambda: self._once("weather_preview", self._cycle_weather_preview))
+        self._act_preview_time = self._action("Preview another time of day", ["T", k.Key_Blue],
+                                              lambda: self._once("time_preview", self._cycle_time_preview))
+        self._act_settings = self._action("Settings…", ["S", "Ctrl+,"], self._open_settings)
+        self._act_about = self._action("About Simple-Info", None, self._about)
+        self._act_quit = self._action("Quit", "Ctrl+Q", self.close)
+        self._action("", "Escape", self._on_escape)
+
+    def _show_menu(self, pos) -> None:
+        menu = QMenu(self)
+        boards = menu.addMenu("Boards")
+        for action in self._board_actions:
+            boards.addAction(action)
+        for action in (self._act_next, self._act_previous, self._act_cycle, None, self._act_full, self._act_refresh, None,
+                       self._act_preview_weather, self._act_preview_time, None, self._act_settings, self._act_about, self._act_quit):
+            menu.addSeparator() if action is None else menu.addAction(action)
+        menu.exec(self._stage.mapToGlobal(pos))
+
+    def _on_escape(self) -> None:
+        if self.isFullScreen():
+            self._toggle_full_screen()
+
+    def show_at_start(self, fullscreen: bool = False) -> None:
+        """Show the window, full screen if asked to (here, or in Settings)."""
+        if fullscreen or self._store.settings.start_fullscreen:
+            self.showFullScreen()
+        else:
+            self.show()
+        self._act_full.setChecked(self.isFullScreen())
+
+    def _toggle_full_screen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+        self._act_full.setChecked(self.isFullScreen())
+
+    def _toggle_cycle(self) -> None:
+        on = not self._store.settings.cycle_boards
+        self._store.update(cycle_boards=on)
+        self._apply_settings()
+        self._stage.toast(f"Moving to the next board every {self._store.settings.cycle_seconds} seconds" if on else "Staying on this board")
+
+    def _once(self, name: str, action) -> None:
+        """Do an action, unless it was done a moment ago: a TV remote's
+        button can arrive twice (through the desktop and read directly),
+        and a toggle done twice would undo itself."""
+        now = time.monotonic()
+        if now - self._last_action.get(name, 0.0) < 0.3:
+            return
+        self._last_action[name] = now
+        action()
+
+    # --- previews (to see each weather without waiting for it)
+
+    def _cycle_weather_preview(self) -> None:
+        self._stage.show_key(self._weather.key)
+        self._stage.toast(self._weather.cycle_weather_preview())
+
+    def _cycle_time_preview(self) -> None:
+        self._stage.show_key(self._weather.key)
+        self._stage.toast(self._weather.cycle_time_preview())
+
+    # --- the TV remote
+
+    def _apply_tv_remote(self) -> None:
+        if self._store.settings.tv_remote and cec.cec_devices():
+            if not self._cec_timer.isActive():
+                self._register_tv_remote()
+                self._cec_timer.start(10 * 60 * 1000)  # re-registered now and then, in case the TV was off
+                self._tv_key_timer.start(40)
+        else:
+            self._cec_timer.stop()
+            self._tv_key_timer.stop()
+            if self._tv_keys is not None:
+                self._tv_keys.stop()
+                self._tv_keys = None
+
+    def _register_tv_remote(self) -> None:
+        self._runner.run(cec.register_with_tv, lambda message: log_event(message), lambda error: None)
+
+    def _poll_tv_keys(self) -> None:
+        if self._tv_keys is None:
+            reader = TvKeyReader()
+            if reader.start():
+                self._tv_keys = reader
+                log_event(f"reading TV remote keys from {', '.join(f'{n} ({p})' for n, p in reader.devices)}")
+            else:
+                if reader.errors:
+                    log_event(f"can't read TV remote keys: {'; '.join(reader.errors)}")
+                self._tv_key_timer.setInterval(60 * 1000)  # the device may turn up later: look again in a minute
+                return
+            self._tv_key_timer.setInterval(40)
+        for key in self._tv_keys.take():
+            action = TV_KEY_ACTIONS.get(key)
+            if action is None:
+                continue
+            if action.startswith("board_"):
+                index = int(action[6:]) - 1
+                if index < len(self._boards):
+                    self._stage.show_board(index)
+                continue
+            {
+                "next": lambda: self._once("next", self._stage.next_board),
+                "previous": lambda: self._once("previous", self._stage.previous_board),
+                "refresh": lambda: self._once("refresh", self._refresh_now),
+                "cycle": lambda: self._once("cycle", self._toggle_cycle),
+                "weather_preview": lambda: self._once("weather_preview", self._cycle_weather_preview),
+                "time_preview": lambda: self._once("time_preview", self._cycle_time_preview),
+            }[action]()
+
+    # --- settings
+
+    def _apply_settings(self) -> None:
+        s = self._store.settings
+        for board in self._boards:
+            board.configure(s)
+        self._stage.cycle = s.cycle_boards
+        self._stage.cycle_seconds = s.cycle_seconds
+        self._act_cycle.setChecked(s.cycle_boards)
+        light = s.graphics == "light" or (s.graphics == "auto" and is_raspberry_pi())
+        self._stage.set_light_graphics(light)
+        if s.keep_awake and not self._keep_awake.active:
+            log_event(f"keeping the screen awake via {self._keep_awake.start() or 'nothing (not supported here)'}")
+        elif not s.keep_awake and self._keep_awake.active:
+            self._keep_awake.stop()
+            log_event("no longer keeping the screen awake")
+        self._apply_tv_remote()
+
+    def _open_settings(self) -> None:
+        dialog = SettingsDialog(self._store.settings, self._runner, self)
+        if dialog.exec():
+            self._store.update(**dialog.values())
+        self._apply_settings()
+        self._service_boards()
+
+    # --- data
+
+    def _service_boards(self) -> None:
+        """Start a fetch for every board whose data is due."""
+        for board in self._boards:
+            if not board.due():
+                continue
+            job = board.fetch_job()
+            if job is None:
+                continue
+            board.begin_fetch()
+            self._runner.run(job, partial(self._on_fetched, board), partial(self._on_fetch_failed, board))
+
+    def _on_fetched(self, board: Board, result) -> None:
+        board.end_fetch(board.on_fetched(result))
+
+    def _on_fetch_failed(self, board: Board, error: Exception) -> None:
+        log_event(f"{board.key}: fetch failed: {error!r}")
+        board.end_fetch(board.on_fetched(None))
+
+    def _refresh_now(self) -> None:
+        self._stage.board.fetch_now()
+        self._service_boards()
+        self._stage.toast(f"Refreshing {self._stage.board.title.lower()}…", 2)
+
+    # --- about & updates
+
+    def _about(self) -> None:
+        QMessageBox.about(
+            self,
+            "About Simple-Info",
+            f"<b>Simple-Info</b> v{__version__}<br><br>"
+            "An information board: switch between boards of live information, "
+            "each with its own background so you can tell at a glance what it shows.<br><br>"
+            "Weather data by <a href='https://open-meteo.com/'>Open-Meteo.com</a> (CC BY 4.0).<br><br>"
+            "By Mike Hellyer, built with Claude Code.",
+        )
+
+    def _check_for_updates(self) -> None:
+        self._runner.run(
+            lambda: check_for_update(__version__, UPDATE_OWNER, UPDATE_REPO),
+            self._on_update_checked,
+            lambda error: None,
+        )
+
+    def _on_update_checked(self, info) -> None:
+        if info:
+            self._pending_update = info
+            self._update_banner.announce(info.version)
+
+    def _start_update(self) -> None:
+        if self._pending_update is None:
+            return
+        asset_url = find_asset_for_this_platform(self._pending_update.assets)
+        if asset_url is None:
+            self._update_banner.set_status(f"No installer for this platform — see {self._pending_update.url}")
+            return
+        self._update_banner.set_busy(True, "Downloading…")
+        self._runner.run(lambda: download_asset(asset_url), self._on_update_downloaded, lambda error: self._on_update_downloaded(None))
+
+    def _on_update_downloaded(self, path) -> None:
+        if path is None:
+            self._update_banner.set_status("Couldn't download the update — try again")
+            self._update_banner.set_busy(False)
+            return
+        try:
+            process = launch_installer(path)
+        except OSError:
+            self._update_banner.set_status(f"Downloaded to {path} — open it manually")
+            self._update_banner.set_busy(False)
+            return
+
+        self._update_banner.set_status("Installer launched — closing to finish…")
+        if sys.platform not in ("win32", "darwin") and process is not None:
+            # Linux: wait for pkexec/apt to finish before quitting — quitting
+            # immediately can kill its password prompt before it's answered.
+            self._runner.run(lambda: (path, self._wait_for_installer(process)), self._on_installer_finished)
+        else:
+            QTimer.singleShot(1500, self.close)
+
+    @staticmethod
+    def _wait_for_installer(process) -> tuple[int, str]:
+        returncode = process.wait()
+        stderr_text = process.stderr.read().strip() if process.stderr is not None else ""
+        return returncode, stderr_text
+
+    def _on_installer_finished(self, result) -> None:
+        path, (returncode, stderr_text) = result
+        if returncode == 0:
+            self.close()
+            return
+        detail = f": {stderr_text}" if stderr_text else f" (exit code {returncode})"
+        self._update_banner.set_status(f"Update didn't install{detail} — installer is at {path}")
+        self._update_banner.set_busy(False)
+
+    def closeEvent(self, event) -> None:
+        self._stage.shutdown()
+        self._service_timer.stop()
+        self._keep_awake.stop()
+        if self._tv_keys is not None:
+            self._tv_keys.stop()
+        self._store.save()
+        self._runner.shutdown(BACKGROUND_JOIN_TIMEOUT_MS)
+        super().closeEvent(event)
