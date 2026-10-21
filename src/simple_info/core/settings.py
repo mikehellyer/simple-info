@@ -22,6 +22,17 @@ class Settings:
     wind_unit: str = "mph"  # "mph" or "kmh"
     clock_24h: bool = True
 
+    # The train board: a station in Great Britain (name and three-letter
+    # code), departures, arrivals or both in turn, and optionally only the
+    # trains going to (or coming from) another station.
+    train_station_name: str = ""
+    train_station_crs: str = ""
+    train_mode: str = "departures"  # "departures", "arrivals" or "both"
+    train_filter_name: str = ""
+    train_filter_crs: str = ""
+    # A National Rail (Darwin) access token, if you have one: not needed.
+    rail_token: str = ""
+
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.
@@ -44,6 +55,7 @@ _CHOICES = {
     "temperature_unit": ("C", "F"),
     "wind_unit": ("mph", "kmh"),
     "graphics": ("auto", "full", "light"),
+    "train_mode": ("departures", "arrivals", "both"),
 }
 _RANGES = {
     "cycle_seconds": (5, 3600),
@@ -85,6 +97,9 @@ class SettingsStore:
                 low, high = _RANGES[f.name]
                 value = max(low, min(high, value))
             setattr(self.settings, f.name, value)
+        for name in ("train_station_crs", "train_filter_crs"):
+            code = getattr(self.settings, name)
+            setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")
         if self.settings.location_mode == "manual" and not self.settings.location_name:
             self.settings.location_mode = "auto"
 

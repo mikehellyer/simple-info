@@ -11,8 +11,17 @@ Boards so far:
    You'll see the sun, drifting clouds, rain, snow, fog, lightning, and
    stars and the moon at night.
 
-Planned: sport results and tables, train departures and arrivals, currency
-exchange rates, TV listings…
+2. **Trains.** Live departures and arrivals for any station in Great
+   Britain, shown on an amber dot-matrix board hanging in a Victorian train
+   shed. As on a real platform, the next train gets a line that scrolls
+   through its calling points, and its operator, length and any delay
+   reason sit underneath. Late trains show in orange and cancellations in
+   red. Station notices scroll along the bottom next to the clock. Choose
+   the station in Settings: departures, arrivals, or both in turn
+   (switching every 20 seconds). You can also show only the trains to or
+   from another station. It refreshes every minute.
+
+Planned: sport results and tables, currency exchange rates, TV listings…
 
 ## Keys
 
@@ -25,7 +34,7 @@ exchange rates, TV listings…
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
-| S | Settings: location, units, board timing, display |
+| S | Settings: weather location, units, train station, board timing, display |
 | Right-click | All of the above as a menu |
 
 The bar of board names along the bottom shows up for a few seconds after
@@ -72,6 +81,10 @@ venv/bin/pytest
 
 ## Data
 
-Weather by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Your rough
+Weather by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Train
+times are National Rail Enquiries' live departure boards (Darwin), read
+through the free [Huxley 2](https://huxley2.azurewebsites.net/) service, so
+no sign-up is needed. If you have your own National Rail access token, put it
+in Settings and it will be passed along. Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a
 place in Settings.

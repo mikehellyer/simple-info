@@ -174,6 +174,13 @@ class Stage(QWidget):
             board.paint_background(p, rect)
 
         p.drawImage(rect.topLeft(), self._content_image(board, rect))
+        if board.has_live:
+            s, x, y = fit(rect)
+            p.save()
+            p.translate(x, y)
+            p.scale(s, s)
+            board.paint_live(p, time.monotonic())
+            p.restore()
 
         if self._fade_from is not None and self._fade_left > 0:
             p.setOpacity(max(0.0, self._fade_left / FADE_SECONDS) ** 1.5)

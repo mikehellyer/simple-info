@@ -20,6 +20,14 @@ def self_test() -> int:
         checks["sky"] = 0 <= sky.moon_phase() < 1
     except Exception:
         checks["sky"] = False
+    try:
+        from simple_info.core import trains
+
+        board = trains.parse_board({"locationName": "York", "crs": "YRK", "trainServices": [
+            {"std": "10:00", "etd": "10:05", "destination": [{"locationName": "Leeds"}]}]}, trains.DEPARTURES)
+        checks["train parsing"] = board.services[0].expected_text == "Exp 10:05"
+    except Exception:
+        checks["train parsing"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)

@@ -102,3 +102,34 @@ def test_stage_cycles_on_its_own(app, tmp_path):
     stage._on_board = 1.0
     stage._tick()
     assert stage.index == 1
+
+
+def test_train_board_fetches_for_the_chosen_station(app, monkeypatch):
+    from simple_info.core import trains as tr
+    from simple_info.gui.boards.trains import TrainBoard
+
+    from test_trains import PAYLOAD
+
+    board = TrainBoard()
+    board.configure(Settings())
+    assert board.fetch_job() is None  # no station yet: nothing to fetch
+    asked = []
+
+    def fake_fetch(crs, kind, rows, filter_crs, token):
+        asked.append((crs, kind, filter_crs))
+        return tr.parse_board(PAYLOAD, kind)
+
+    monkeypatch.setattr(tr, "fetch_board", fake_fetch)
+    board.configure(Settings(train_station_crs="KGX", train_station_name="London Kings Cross", train_mode="both", train_filter_crs="YRK"))
+    assert board.due()
+    assert board.on_fetched(board.fetch_job()()) is True
+    assert asked == [("KGX", tr.DEPARTURES, "YRK"), ("KGX", tr.ARRIVALS, "YRK")]
+    assert board.showing(0) == tr.DEPARTURES and board.showing(25) == tr.ARRIVALS
+    assert board.on_fetched({tr.DEPARTURES: None, tr.ARRIVALS: None}) is False
+    assert board.offline and tr.DEPARTURES in board.boards  # keeps the last trains
+
+    stage = Stage([board])
+    stage.resize(800, 450)
+    for _ in range(3):
+        stage._tick()
+    assert not stage.grab().isNull()

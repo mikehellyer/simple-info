@@ -82,3 +82,10 @@ class Board:
 
     def paint_content(self, p: QPainter, now: datetime) -> None:
         """Draw the content on the 1600×900 virtual canvas."""
+
+    has_live = False  # set by boards that draw something moving over their content
+
+    def paint_live(self, p: QPainter, t: float) -> None:
+        """Draw anything that moves smoothly over the content (a scrolling
+        line of text…), every frame, on the 1600×900 virtual canvas. t is in
+        seconds and only ever increases."""

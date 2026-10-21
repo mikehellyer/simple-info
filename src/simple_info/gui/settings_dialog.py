@@ -16,11 +16,83 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
+from simple_info.core import trains as tr
 from simple_info.core import weather as wx
 from simple_info.core.settings import Settings
 from simple_info.gui.workers import BackgroundRunner
+
+
+class StationPicker(QWidget):
+    """Search for a station by name (or code) and pick one of the matches."""
+
+    def __init__(self, runner: BackgroundRunner, name: str, crs: str, placeholder: str, optional: bool = False):
+        super().__init__()
+        self._runner = runner
+        self.station = tr.Station(name, crs) if crs else None
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        row = QHBoxLayout()
+        self._query = QLineEdit()
+        self._query.setPlaceholderText(placeholder)
+        self._query.returnPressed.connect(self._search)
+        search = QPushButton("Search")
+        search.clicked.connect(self._search)
+        row.addWidget(self._query, 1)
+        row.addWidget(search)
+        if optional:
+            clear = QPushButton("None")
+            clear.setToolTip("Show every train")
+            clear.clicked.connect(self._clear)
+            row.addWidget(clear)
+        layout.addLayout(row)
+        self._results = QComboBox()
+        self._results.currentIndexChanged.connect(self._on_chosen)
+        self._results.hide()
+        layout.addWidget(self._results)
+        self._label = QLabel()
+        self._label.setStyleSheet("color: gray;")
+        layout.addWidget(self._label)
+        self._optional = optional
+        self._show()
+
+    def _search(self) -> None:
+        query = self._query.text().strip()
+        if query:
+            self._label.setText("Searching…")
+            self._runner.run(lambda: tr.search_stations(query), self._on_results, lambda error: self._on_results([]))
+
+    def _on_results(self, stations: list) -> None:
+        self._results.blockSignals(True)
+        self._results.clear()
+        for s in stations[:30]:
+            self._results.addItem(f"{s.name} ({s.crs})", s)
+        self._results.blockSignals(False)
+        self._results.setVisible(bool(stations))
+        if stations:
+            self._results.setCurrentIndex(0)
+            self._on_chosen(0)
+        else:
+            self._label.setText("No stations found (or no connection) — try another spelling")
+
+    def _on_chosen(self, index: int) -> None:
+        station = self._results.itemData(index)
+        if station is not None:
+            self.station = station
+            self._show()
+
+    def _clear(self) -> None:
+        self.station = None
+        self._results.hide()
+        self._show()
+
+    def _show(self) -> None:
+        if self.station:
+            self._label.setText(f"Chosen: {self.station.name} ({self.station.crs})")
+        else:
+            self._label.setText("None: every train" if self._optional else "No station chosen yet — search above")
 
 
 class SettingsDialog(QDialog):
@@ -88,6 +160,26 @@ class SettingsDialog(QDialog):
         ul.addRow("Wind", self._wind)
         ul.addRow("", self._clock24)
         layout.addWidget(units)
+
+        # Trains
+        trains = QGroupBox("Train board (stations in Great Britain)")
+        tl = QFormLayout(trains)
+        self._station = StationPicker(runner, settings.train_station_name, settings.train_station_crs,
+                                      "Station name or code, e.g. Carlisle or CAR")
+        tl.addRow("Station", self._station)
+        self._train_mode = QComboBox()
+        for label, key in (("Departures", "departures"), ("Arrivals", "arrivals"), ("Both, in turn", "both")):
+            self._train_mode.addItem(label, key)
+        self._train_mode.setCurrentIndex(max(0, self._train_mode.findData(settings.train_mode)))
+        tl.addRow("Show", self._train_mode)
+        self._train_filter = StationPicker(runner, settings.train_filter_name, settings.train_filter_crs,
+                                           "Optional: only trains calling at…", optional=True)
+        tl.addRow("Only trains to/from", self._train_filter)
+        self._rail_token = QLineEdit(settings.rail_token)
+        self._rail_token.setPlaceholderText("optional — not needed")
+        self._rail_token.setToolTip("A National Rail (Darwin OpenLDBWS) access token, if you have your own")
+        tl.addRow("National Rail token", self._rail_token)
+        layout.addWidget(trains)
         layout.addStretch(1)
 
         # Boards
@@ -174,7 +266,12 @@ class SettingsDialog(QDialog):
             "start_fullscreen": self._start_fullscreen.isChecked(),
             "tv_remote": self._tv_remote.isChecked(),
             "graphics": self._graphics.currentData(),
+            "train_mode": self._train_mode.currentData(),
+            "rail_token": self._rail_token.text().strip(),
         }
+        station, filter_ = self._station.station, self._train_filter.station
+        values.update(train_station_name=station.name if station else "", train_station_crs=station.crs if station else "",
+                      train_filter_name=filter_.name if filter_ else "", train_filter_crs=filter_.crs if filter_ else "")
         if manual:
             values.update(location_name=self._place.name, latitude=self._place.latitude, longitude=self._place.longitude)
         return values
