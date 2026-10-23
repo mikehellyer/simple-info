@@ -56,7 +56,11 @@ def check_tv() -> None:
         return
     for dev in devices:
         say(f"-- {dev} --")
-        out = _run([tool, "-d", str(dev), "--playback", "--osd-name", cec.NAME])
+        out = _run(cec.register_args(tool, dev))
+        if "Physical Address" not in out:
+            out = _run(cec.register_args(tool, dev, menus=False))
+        menu = _run(cec.menu_status_args(tool, dev))
+        say(f"told the TV our menu is open: {'yes' if 'Transmit' in menu or 'OK' in menu or not menu else menu[:200]}")
         phys = re.search(r"Physical Address\s*:\s*([0-9a-f.]+)", out)
         logical = re.search(r"Logical Address\s*:\s*(\d+)", out)
         say(f"registered as playback device: physical address {phys.group(1) if phys else '?'}, "

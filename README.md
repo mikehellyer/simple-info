@@ -125,11 +125,17 @@ the TV over HDMI, so the TV's own remote works:
 | OK, Channel + | Next board |
 | Back / Exit, Channel − | Previous board |
 | 1–9 | Go to a board |
-| Play / pause | Pause: stay on this page and board |
+| Play / pause, Stop | Pause: stay on this page and board |
+| ⏮ ⏭ (previous / next) | Previous / next board |
+| ◀◀ ▶▶ (rewind / fast-forward) | Previous / next page |
 | Red | Move through the boards by itself (on / off) |
 | Green, Info | Refresh now |
 | Yellow | Weather preview |
 | Blue | Show the phone remote's QR code |
+
+Some TVs only pass on the playback buttons, so those alone can work the
+whole board. Simple-Info also tells the TV it has menus (so the TV sends
+the arrows and OK as well), without switching the TV over to it.
 
 This needs `cec-ctl` (package `v4l-utils`, which the .deb recommends) and a TV
 with HDMI-CEC switched on. TV makers give it their own names: Samsung

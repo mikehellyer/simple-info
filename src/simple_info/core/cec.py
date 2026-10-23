@@ -22,6 +22,22 @@ def cec_devices() -> list[Path]:
     return sorted(Path("/dev").glob("cec[0-9]*"))
 
 
+# Telling the TV that we have menus to find our way round (CEC 2.0's remote
+# control profile) makes many TVs send the arrows and OK as well as the
+# playback buttons; older TVs go by <Menu Status> "activated" instead.
+MENU_FEATURES = ["--rc-src-dev-root", "--rc-src-contents", "--rc-src-media-top", "--rc-src-media-context"]
+
+
+def register_args(tool: str, dev: Path, menus: bool = True) -> list[str]:
+    return [tool, "-d", str(dev), "--playback", "--osd-name", NAME] + (MENU_FEATURES if menus else [])
+
+
+def menu_status_args(tool: str, dev: Path) -> list[str]:
+    """Tell the TV our menu is open (it then passes on its navigation keys).
+    (Not <Active Source>, which would switch the TV over to us.)"""
+    return [tool, "-d", str(dev), "--to", "0", "--menu-status", "menu-state=activated"]
+
+
 def register_with_tv() -> str:
     """Register on every HDMI-CEC port. Returns a line for the log; never raises."""
     devices = cec_devices()
@@ -33,9 +49,13 @@ def register_with_tv() -> str:
     results = []
     for dev in devices:
         try:
-            done = subprocess.run([tool, "-d", str(dev), "--playback", "--osd-name", NAME],
-                                  capture_output=True, text=True, timeout=10)
-            results.append(f"{dev.name}: {'ok' if done.returncode == 0 else (done.stderr.strip() or done.returncode)}")
+            done = subprocess.run(register_args(tool, dev), capture_output=True, text=True, timeout=10)
+            if done.returncode != 0:  # an older cec-ctl without the menu options: plain registration
+                done = subprocess.run(register_args(tool, dev, menus=False), capture_output=True, text=True, timeout=10)
+            result = "ok" if done.returncode == 0 else (done.stderr.strip() or str(done.returncode))
+            menu = subprocess.run(menu_status_args(tool, dev), capture_output=True, text=True, timeout=10)
+            result += ", menu announced" if menu.returncode == 0 else f", menu not announced ({menu.stderr.strip() or menu.returncode})"
+            results.append(f"{dev.name}: {result}")
         except (OSError, subprocess.TimeoutExpired) as error:
             results.append(f"{dev.name}: {error}")
     return "HDMI-CEC " + ", ".join(results)

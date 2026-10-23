@@ -42,7 +42,9 @@ ACTIONS = {
     "KEY_OK": "next", "KEY_SELECT": "next", "KEY_ENTER": "next", "KEY_KPENTER": "next", "KEY_CHANNELUP": "next", "KEY_NEXTSONG": "next",
     "KEY_EXIT": "previous", "KEY_BACK": "previous", "KEY_CHANNELDOWN": "previous", "KEY_PREVIOUSSONG": "previous",
     "KEY_INFO": "refresh", "KEY_EPG": "refresh",
-    "KEY_PLAYPAUSE": "hold", "KEY_PAUSE": "hold", "KEY_PLAY": "hold",
+    "KEY_PLAYPAUSE": "hold", "KEY_PAUSE": "hold", "KEY_PLAY": "hold", "KEY_STOP": "hold",
+    # many TVs only pass on the playback buttons: rewind / fast-forward turn the pages
+    "KEY_REWIND": "page_previous", "KEY_FASTFORWARD": "page_next",
     "KEY_RED": "cycle", "KEY_GREEN": "refresh", "KEY_YELLOW": "weather_preview", "KEY_BLUE": "phone_qr",
     **{f"KEY_NUMERIC_{n}": f"board_{n}" for n in range(1, 10)},
     **{f"KEY_{n}": f"board_{n}" for n in range(1, 10)},
