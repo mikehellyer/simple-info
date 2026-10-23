@@ -81,13 +81,22 @@ class MainWindow(QMainWindow):
         self._stage = Stage(self._boards)
         self._stage.setContextMenuPolicy(Qt.CustomContextMenu)
         self._stage.customContextMenuRequested.connect(self._show_menu)
-        self._stage.board_changed.connect(lambda key: self._store.update(board=key))
+        self._stage.board_changed.connect(lambda key: self._store.update(board=key, board_page=0))
+        self._stage.page_changed.connect(lambda page: self._store.update(board_page=page))
+        self._stage.pause_clicked.connect(self._toggle_pause)
         layout.addWidget(self._stage, 1)
         self.setCentralWidget(central)
 
         self._build_actions()
         self._apply_settings()
-        self._stage.show_key(self._store.settings.board, fade=False)
+        s = self._store.settings
+        page = s.board_page  # (read first: switching boards resets the saved page)
+        if self._stage.show_key(s.board, fade=False) and page < self._stage.board.page_count():
+            self._stage.board.set_page(page)  # back to the page it was on
+            self._store.update(board_page=page)
+        if s.paused:
+            self._stage.set_paused(True)
+            self._act_pause.setChecked(True)
 
         self._service_timer = QTimer(self)
         self._service_timer.timeout.connect(self._service_boards)
@@ -120,6 +129,9 @@ class MainWindow(QMainWindow):
         self._board_actions = []
         for i, board in enumerate(self._boards[:9]):
             self._board_actions.append(self._action(board.title, str(i + 1), partial(self._stage.show_board, i)))
+        self._act_pause = self._action("Pause (stay on this page)",
+                                       ["H", k.Key_Pause, k.Key_MediaTogglePlayPause, k.Key_MediaPause, k.Key_MediaPlay],
+                                       lambda: self._once("hold", self._toggle_pause), checkable=True)
         self._act_cycle = self._action("Move through the boards by itself", ["C", k.Key_Red],
                                        lambda: self._once("cycle", self._toggle_cycle), checkable=True)
         self._act_full = self._action("Full screen", ["F", "F11"], self._toggle_full_screen, checkable=True)
@@ -138,7 +150,7 @@ class MainWindow(QMainWindow):
         boards = menu.addMenu("Boards")
         for action in self._board_actions:
             boards.addAction(action)
-        for action in (self._act_next, self._act_previous, self._act_page_next, self._act_page_previous, self._act_cycle, None, self._act_full, self._act_refresh, None,
+        for action in (self._act_next, self._act_previous, self._act_page_next, self._act_page_previous, self._act_pause, self._act_cycle, None, self._act_full, self._act_refresh, None,
                        self._act_preview_weather, self._act_preview_time, None, self._act_settings, self._act_about, self._act_quit):
             menu.addSeparator() if action is None else menu.addAction(action)
         menu.exec(self._stage.mapToGlobal(pos))
@@ -161,6 +173,13 @@ class MainWindow(QMainWindow):
         else:
             self.showFullScreen()
         self._act_full.setChecked(self.isFullScreen())
+
+    def _toggle_pause(self) -> None:
+        paused = not self._stage.paused
+        self._stage.set_paused(paused)
+        self._act_pause.setChecked(paused)
+        self._store.update(paused=paused, board_page=self._stage.board.page)
+        self._stage.toast("Paused: staying on this page (H to carry on)" if paused else "Carrying on")
 
     def _toggle_cycle(self) -> None:
         on = not self._store.settings.cycle_boards
@@ -232,6 +251,7 @@ class MainWindow(QMainWindow):
                 "previous": lambda: self._once("previous", self._stage.previous_board),
                 "refresh": lambda: self._once("refresh", self._refresh_now),
                 "cycle": lambda: self._once("cycle", self._toggle_cycle),
+                "hold": lambda: self._once("hold", self._toggle_pause),
                 "weather_preview": lambda: self._once("weather_preview", self._cycle_weather_preview),
                 "time_preview": lambda: self._once("time_preview", self._cycle_time_preview),
             }[action]()

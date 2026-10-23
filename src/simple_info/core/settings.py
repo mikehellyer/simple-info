@@ -62,6 +62,9 @@ class Settings:
     # Move on to the next board by itself every so often.
     cycle_boards: bool = False
     cycle_seconds: int = 30
+    # Paused (H, or the remote's play/pause): stay on this board and page.
+    paused: bool = False
+    board_page: int = 0  # the page the board was on, to come back to
     # How long each page stays up on boards with more than one (sport, TV).
     page_seconds: int = 20
 
@@ -86,6 +89,7 @@ _CHOICES = {
 _RANGES = {
     "cycle_seconds": (5, 3600),
     "page_seconds": (5, 600),
+    "board_page": (0, 99),
 }
 
 

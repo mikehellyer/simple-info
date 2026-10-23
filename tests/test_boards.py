@@ -10,6 +10,8 @@ try:
 except ImportError:  # Qt's GUI module can't load on some bare CI machines
     pytest.skip("Qt GUI not available", allow_module_level=True)
 
+from PySide6.QtCore import QRectF
+
 from simple_info.core import weather as wx
 from simple_info.core.settings import Settings
 from simple_info.gui.boards.base import Board
@@ -288,3 +290,52 @@ def font_for_test():
     f = QFont()
     f.setPixelSize(20)
     return f
+
+
+def test_pausing_holds_the_page_the_board_and_departures_or_arrivals(app, tmp_path, monkeypatch):
+    from simple_info.core import trains as tr
+    from simple_info.gui.boards.trains import TrainBoard
+
+    class Paged(Board):
+        key, title = "paged", "Paged"
+
+        def page_count(self):
+            return 3
+
+    paged = Paged()
+    stage = Stage([paged, _Plain()])
+    stage.resize(800, 450)
+    stage.cycle, stage.cycle_seconds = True, 0.05
+    clicks = []
+    stage.pause_clicked.connect(lambda: clicks.append(1))
+    stage.set_paused(True)
+    for _ in range(3):
+        stage._on_page, stage._on_board = 100.0, 100.0
+        stage._tick()
+    assert stage.index == 0 and paged.page == 0  # held: no turning, no moving on
+    assert stage.turn_page(1) and paged.page == 1  # …but pages can still be turned by hand
+    assert not stage.grab().isNull()
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtCore import QEvent
+    centre = stage._pause_badge(QRectF(stage.rect())).center()
+    stage.mousePressEvent(QMouseEvent(QEvent.MouseButtonPress, QPointF(centre), QPointF(centre), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert clicks == [1]
+    stage.set_paused(False)
+    stage._on_page = 100.0
+    stage._tick()
+    assert paged.page == 2
+
+    trains = TrainBoard()
+    trains.configure(Settings(train_station_crs="KGX", train_mode="both"))
+    assert trains.showing(0) == tr.DEPARTURES
+    trains.paused = True
+    assert trains.showing(25) == tr.DEPARTURES  # paused: no swap to arrivals
+    trains.paused = False
+    assert trains.showing(25) == tr.ARRIVALS
+
+
+def test_the_remotes_play_pause_button_pauses():
+    from simple_info.core import tv_keys
+
+    assert tv_keys.ACTIONS["KEY_PLAYPAUSE"] == "hold" and tv_keys.ACTIONS["KEY_PAUSE"] == "hold"

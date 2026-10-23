@@ -26,6 +26,20 @@ from simple_info.core.settings import Settings
 from simple_info.gui.paint import rgb
 
 
+TITLE_WIDTH = 640.0  # board titles stay left of the top centre, where the paused badge goes
+
+
+def fit_title(text: str, font, width: float = TITLE_WIDTH):
+    """The title's font, made smaller (down to two thirds) if the title is too long, then cut short with …"""
+    from PySide6.QtGui import QFontMetricsF
+    from PySide6.QtCore import Qt
+
+    smallest = int(font.pixelSize() * 0.66)
+    while QFontMetricsF(font).horizontalAdvance(text) > width and font.pixelSize() > smallest:
+        font.setPixelSize(font.pixelSize() - 1)
+    return font, QFontMetricsF(font).elidedText(text, Qt.ElideRight, width)
+
+
 class Board:
     key = ""  # stable id, remembered in the settings
     title = ""  # shown in the board bar along the bottom
@@ -38,6 +52,7 @@ class Board:
         self.fetching = False
         self._next_fetch = 0.0  # monotonic time; 0 = as soon as possible
         self.page = 0
+        self.paused = False  # held by the stage: anything that takes turns stays put
 
     # --- settings and data
 

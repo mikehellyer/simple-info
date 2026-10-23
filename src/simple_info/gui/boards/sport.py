@@ -17,7 +17,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen
 
 from simple_info.core import sports as sp
 from simple_info.core.settings import Settings
-from simple_info.gui.boards.base import Board
+from simple_info.gui.boards.base import TITLE_WIDTH, Board, fit_title
 from simple_info.gui.boards.stadium import Stadium
 from simple_info.gui.paint import W, alpha, rgb, vgrad
 
@@ -187,9 +187,10 @@ class SportBoard(Board):
     def _paint_header(self, p: QPainter, now: datetime, key: Optional[str], data: Optional[sp.CompetitionData]) -> None:
         comp = sp.BY_KEY.get(key) if key else None
         name = (data.name if data else "") or (comp.name if comp else "Sport")
-        p.setFont(font(46, QFont.DemiBold))
+        f, name = fit_title(name, font(46, QFont.DemiBold))
+        p.setFont(f)
         p.setPen(WHITE)
-        p.drawText(QRectF(54, 22, 1000, 60), Qt.AlignLeft | Qt.AlignVCenter, name)
+        p.drawText(QRectF(54, 22, TITLE_WIDTH, 60), Qt.AlignLeft | Qt.AlignVCenter, name)
         bits = [sp.SPORT_NAMES.get(comp.sport, "") if comp else ""]
         if data is not None:
             updated = datetime.fromtimestamp(data.fetched_at)

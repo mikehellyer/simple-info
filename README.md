@@ -75,6 +75,7 @@ Boards so far:
 | ◀ ▶, Page Up / Down, Space / Tab | Previous / next board |
 | ▲ ▼ | Previous / next page (on boards with pages, like Sport) |
 | 1–9 | Go to a board |
+| H, Pause, play/pause | Pause: stay on this page and board (again to carry on) |
 | C | Move through the boards by itself (on / off) |
 | F / F11, double-click | Full screen (Esc to leave) |
 | R | Refresh this board's information now |
@@ -82,6 +83,14 @@ Boards so far:
 | T | Preview dawn / day / dusk / night (cycles back to live) |
 | S | Settings: units, display, weather location, train station, currencies, sport, TV channels, news |
 | Right-click | All of the above as a menu |
+
+**Pausing.** Press **H** (or the remote's play/pause) to keep what's on
+screen: pages stop turning, boards stop moving on by themselves, and the
+train board stops swapping between departures and arrivals. A **❚❚ Paused**
+badge shows at the top while it's held; ▲ ▼ still turn pages by hand, so
+you can pick the league you want and leave it there. Press H again (or
+click the badge) to carry on. The pause, and the page you were on, are
+remembered when the app is closed and opened again.
 
 The bar of board names along the bottom shows up for a few seconds after
 each switch or mouse move. You can click a name to go to that board.
@@ -101,6 +110,7 @@ the TV over HDMI, so the TV's own remote works:
 | OK, Channel + | Next board |
 | Back / Exit, Channel − | Previous board |
 | 1–9 | Go to a board |
+| Play / pause | Pause: stay on this page and board |
 | Red | Move through the boards by itself (on / off) |
 | Green, Info | Refresh now |
 | Yellow / Blue | Weather / time-of-day previews |

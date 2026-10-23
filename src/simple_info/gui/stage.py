@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from PySide6.QtCore import QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter, QPixmap
+from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QWidget
 
 from simple_info.gui.boards.base import Board
@@ -20,7 +20,7 @@ FADE_SECONDS = 1.0
 BAR_SECONDS = 4.0  # how long the board bar stays up after a switch or a mouse move
 CURSOR_HIDE_SECONDS = 3.0
 
-HINT = "◀ ▶  switch boards     ▲ ▼  turn pages     F  full screen     S  settings     Right-click  menu"
+HINT = "◀ ▶  switch boards     ▲ ▼  turn pages     H  pause     F  full screen     S  settings     Right-click  menu"
 
 
 def fit(rect: QRectF) -> tuple[float, float, float]:
@@ -31,6 +31,8 @@ def fit(rect: QRectF) -> tuple[float, float, float]:
 
 class Stage(QWidget):
     board_changed = Signal(str)
+    page_changed = Signal(int)
+    pause_clicked = Signal()  # the paused badge was clicked
 
     def __init__(self, boards: list[Board], parent=None):
         super().__init__(parent)
@@ -45,6 +47,7 @@ class Stage(QWidget):
         self._fade_left = 0.0
         self._on_board = 0.0  # seconds on the current board
         self._on_page = 0.0  # seconds on the current page of a board with pages
+        self.paused = False  # held: no turning pages or moving on by itself
         self.cycle = False
         self.cycle_seconds = 30.0
 
@@ -105,8 +108,21 @@ class Stage(QWidget):
             self._fade_left = FADE_SECONDS
         board.set_page(board.page + step)
         self._on_page = 0.0
+        self.page_changed.emit(board.page)
         self.update()
         return True
+
+    def set_paused(self, paused: bool) -> None:
+        """Hold what's on screen: no turning pages, no moving on to the next
+        board, and boards that take turns (trains: departures and arrivals)
+        stay on what they're showing."""
+        self.paused = paused
+        self._on_page = 0.0
+        self._on_board = 0.0
+        for board in self.boards:
+            board.paused = paused
+            board.dirty = True
+        self.update()
 
     def next_board(self) -> None:
         self.show_board(self.index + 1)
@@ -138,7 +154,9 @@ class Stage(QWidget):
         self.board.step(dt)
         self._on_board += dt
         pages = self.board.page_count()
-        if pages > 1:
+        if self.paused:
+            pass  # held: stay on this board and this page
+        elif pages > 1:
             # a board with pages takes turns through them; moving on by
             # itself, it shows them all first
             self._on_page += dt
@@ -174,6 +192,9 @@ class Stage(QWidget):
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
+            if self.paused and self._pause_badge(QRectF(self.rect())).contains(event.position()):
+                self.pause_clicked.emit()
+                return
             hit = self._bar_hit(event.position().x(), event.position().y())
             if hit is not None:
                 self.show_board(hit)
@@ -213,6 +234,8 @@ class Stage(QWidget):
             p.drawPixmap(self.rect(), self._fade_from)
             p.setOpacity(1.0)
         self._paint_bar(p, rect)
+        if self.paused:
+            self._paint_paused(p, rect)
         self._paint_messages(p, rect)
         p.end()
 
@@ -285,6 +308,34 @@ class Stage(QWidget):
                 p.drawRect(QRectF(inner.left(), inner.top(), inner.width() * k, inner.height()))
             p.setPen(rgb(10, 14, 22, 255 * a) if current else rgb(255, 255, 255, 220 * a))
             p.drawText(r, Qt.AlignCenter, f"{i + 1}  {b.title}")
+        p.restore()
+
+    def _pause_badge(self, rect: QRectF) -> QRectF:
+        """Where the paused badge sits: top centre, clear of every board's title and clock."""
+        s, x, y = fit(rect)
+        w, h = 176 * s, 44 * s
+        return QRectF(rect.center().x() - w / 2, y + 12 * s, w, h)
+
+    def _paint_paused(self, p: QPainter, rect: QRectF) -> None:
+        badge = self._pause_badge(rect)
+        s = badge.height() / 44
+        p.save()
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(rgb(255, 255, 255, 120), max(1.0, 1.5 * s)))
+        p.setBrush(rgb(0, 0, 0, 170))
+        p.drawRoundedRect(badge, badge.height() / 2, badge.height() / 2)
+        # the pause sign: two bars
+        p.setPen(Qt.NoPen)
+        p.setBrush(rgb(255, 200, 70))
+        bx, by, bh = badge.left() + 20 * s, badge.top() + 12 * s, 20 * s
+        p.drawRoundedRect(QRectF(bx, by, 6 * s, bh), 2 * s, 2 * s)
+        p.drawRoundedRect(QRectF(bx + 11 * s, by, 6 * s, bh), 2 * s, 2 * s)
+        f = QFont()
+        f.setPixelSize(max(10, int(21 * s)))
+        f.setWeight(QFont.DemiBold)
+        p.setFont(f)
+        p.setPen(rgb(255, 255, 255, 235))
+        p.drawText(QRectF(bx + 28 * s, badge.top(), badge.right() - bx - 40 * s, badge.height()), Qt.AlignCenter, "Paused")
         p.restore()
 
     def _paint_messages(self, p: QPainter, rect: QRectF) -> None:

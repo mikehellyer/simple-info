@@ -140,6 +140,7 @@ class TrainBoard(Board):
         self.filter_crs = ""
         self.filter_name = ""
         self.clock_24h = True
+        self._held_kind = ""  # what "both" mode last showed, kept while paused
         self._key = ""  # your Rail Data Marketplace key, if any
         self.boards: dict[str, tr.TrainBoard] = {}
         self.status = ""
@@ -191,8 +192,11 @@ class TrainBoard(Board):
         """Which board is up now: in "both" mode they take turns."""
         if self.mode != "both":
             return self.mode
+        if self.paused and self._held_kind:
+            return self._held_kind  # paused: stay on whichever was showing
         t = time.time() if t is None else t
-        return tr.DEPARTURES if int(t // BOTH_SECONDS) % 2 == 0 else tr.ARRIVALS
+        self._held_kind = tr.DEPARTURES if int(t // BOTH_SECONDS) % 2 == 0 else tr.ARRIVALS
+        return self._held_kind
 
     # --- drawing
 

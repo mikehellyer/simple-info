@@ -12,7 +12,7 @@ from PySide6.QtGui import QFont, QFontMetricsF, QImage, QPainter, QPainterPath, 
 
 from simple_info.core import news as nw
 from simple_info.core.settings import Settings
-from simple_info.gui.boards.base import Board
+from simple_info.gui.boards.base import TITLE_WIDTH, Board, fit_title
 from simple_info.gui.boards.newsroom import Newsroom
 from simple_info.gui.paint import W, alpha, rgb, vgrad
 
@@ -203,10 +203,10 @@ class NewsBoard(Board):
         feed = nw.BY_KEY.get(key) if key else None
         name = feed.name if feed else "News"
         source, _, section = name.partition(" – ")
-        p.setFont(font(46, QFont.DemiBold))
+        f, title = fit_title(section or source, font(46, QFont.DemiBold))
+        p.setFont(f)
         p.setPen(WHITE)
-        p.drawText(QRectF(54, 22, 1080, 60), Qt.AlignLeft | Qt.AlignVCenter,
-                   QFontMetricsF(p.font()).elidedText(section or source, Qt.ElideRight, 1080))
+        p.drawText(QRectF(54, 22, TITLE_WIDTH, 60), Qt.AlignLeft | Qt.AlignVCenter, title)
         bits = [source] if section else []
         if self.updated is not None:
             bits.append(f"updated {self.updated:%H:%M}" if self.clock_24h else f"updated {self.updated:%I:%M %p}".replace(" 0", " "))
