@@ -81,6 +81,7 @@ Boards so far:
 | R | Refresh this board's information now |
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
+| Q | Show the phone remote's QR code |
 | S | Settings: units, display, weather location, train station, currencies, sport, TV channels, news |
 | Right-click | All of the above as a menu |
 
@@ -98,6 +99,20 @@ each switch or mouse move. You can click a name to go to that board.
 To open straight into full screen, tick **Start in full screen** in
 Settings → Display, or run `simple-info --fullscreen`.
 
+## Phone remote
+
+Turn it on in Settings → **Phone remote**, then open the address shown there
+on your phone, or scan the QR code (also shown on screen with **Q**, or the
+TV remote's blue button). The page works in any phone browser on the same
+Wi-Fi: it shows what's on, and has buttons for every board, the current
+board's pages (each sport league, news feed or TV channel page by name),
+pause, moving on by itself, refresh and full screen. It can be protected
+with a PIN.
+
+If the phone can't reach it, run `simple-info --remote-test` on the machine
+showing the board: it checks the TV remote and the phone page, and says
+what to look at.
+
 ## TV remote (HDMI-CEC)
 
 On Linux (for example a Raspberry Pi behind the TV) the app registers with
@@ -113,7 +128,8 @@ the TV over HDMI, so the TV's own remote works:
 | Play / pause | Pause: stay on this page and board |
 | Red | Move through the boards by itself (on / off) |
 | Green, Info | Refresh now |
-| Yellow / Blue | Weather / time-of-day previews |
+| Yellow | Weather preview |
+| Blue | Show the phone remote's QR code |
 
 This needs `cec-ctl` (package `v4l-utils`, which the .deb recommends) and a TV
 with HDMI-CEC switched on. TV makers give it their own names: Samsung

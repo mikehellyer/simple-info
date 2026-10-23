@@ -91,6 +91,10 @@ class Board:
     def page_count(self) -> int:
         return 1
 
+    def page_names(self) -> list[str]:
+        """A name for each page (for the phone remote's page buttons)."""
+        return [f"Page {i + 1}" for i in range(self.page_count())] if self.page_count() > 1 else []
+
     def set_page(self, page: int) -> None:
         n = self.page_count()
         self.page = page % n if n else 0

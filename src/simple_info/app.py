@@ -56,6 +56,12 @@ def self_test() -> int:
         checks["news parsing"] = news.parse_feed(b"<rss><channel><item><title>Hi</title></item></channel></rss>")[0].title == "Hi"
     except Exception:
         checks["news parsing"] = False
+    try:
+        from simple_info.core import remote_server
+
+        checks["phone remote"] = b"Info Remote" in remote_server._page() and bool(remote_server.qr_matrix("http://x/"))
+    except Exception:
+        checks["phone remote"] = False
     if sys.platform.startswith("linux"):
         try:
             import jeepney.io.blocking  # noqa: F401  (keeping the screen awake)
@@ -80,6 +86,10 @@ def self_test() -> int:
 def main() -> int:
     if "--self-test" in sys.argv:
         return self_test()
+    if "--remote-test" in sys.argv:
+        from simple_info.core import remote_check
+
+        return remote_check.main()
 
     # Qt is imported only now, so --self-test runs even where there's no
     # display or graphics libraries (the release workflow's build machines).

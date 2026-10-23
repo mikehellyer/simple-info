@@ -100,6 +100,9 @@ class SportBoard(Board):
     def page_count(self) -> int:
         return max(1, len(self.keys))
 
+    def page_names(self) -> list[str]:
+        return [sp.BY_KEY[k].name for k in self.keys]
+
     def fetch_job(self):
         if not self.keys:
             return None

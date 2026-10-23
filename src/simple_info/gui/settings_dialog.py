@@ -1,7 +1,8 @@
 """Settings: where the weather is for, units, and how the boards behave."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRegularExpression, Qt
+from PySide6.QtGui import QColor, QPainter, QPixmap, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -106,7 +107,7 @@ class StationPicker(QWidget):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None, cache_dir=None):
+    def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None, cache_dir=None, remote_url=None):
         super().__init__(parent)
         self._cache_dir = cache_dir  # where the TV guide is kept, for its list of channels
         self.setWindowTitle("Settings")
@@ -249,6 +250,45 @@ class SettingsDialog(QDialog):
         dl.addRow("Graphics", self._graphics)
         general.addWidget(display)
 
+        # Phone remote
+        phone_tab = self._tab("Phone remote")
+        remotes = QGroupBox("Phone remote, on this Wi-Fi network")
+        rl = QFormLayout(remotes)
+        self._phone_remote = QCheckBox("Turn on the phone remote")
+        self._phone_remote.setChecked(settings.phone_remote)
+        rl.addRow("", self._phone_remote)
+        self._remote_port = QSpinBox()
+        self._remote_port.setRange(1024, 65535)
+        self._remote_port.setValue(settings.remote_port)
+        rl.addRow("Port", self._remote_port)
+        self._remote_pin = QLineEdit(settings.remote_pin)
+        self._remote_pin.setPlaceholderText("optional, digits only")
+        self._remote_pin.setMaxLength(8)
+        self._remote_pin.setValidator(QRegularExpressionValidator(QRegularExpression(r"\d{0,8}")))
+        rl.addRow("PIN", self._remote_pin)
+        where = QLabel()
+        where.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        where.setWordWrap(True)
+        if remote_url:
+            import socket
+
+            from simple_info.core.remote_check import all_addresses
+
+            port = remote_url.rsplit(":", 1)[-1].strip("/")
+            others = [f"http://{a}:{port}/" for a in all_addresses() if a not in remote_url]
+            others.append(f"http://{socket.gethostname()}.local:{port}/")
+            where.setText(f"On your phone, open <b>{remote_url}</b><br>or scan the code (also shown on screen with Q, "
+                          f"or the TV remote's blue button).<br><span style='color:gray'>Also: {' · '.join(others)}</span>")
+            rl.addRow("", where)
+            code = QLabel()
+            code.setPixmap(qr_pixmap(remote_url, 170))
+            rl.addRow("", code)
+        else:
+            where.setText("Turn it on and press OK; its address and QR code then show here.")
+            where.setStyleSheet("color: gray;")
+            rl.addRow("", where)
+        phone_tab.addWidget(remotes)
+
         # Currency
         money = QGroupBox("Currency board")
         ml = QFormLayout(money)
@@ -341,7 +381,9 @@ class SettingsDialog(QDialog):
         news_hint.setStyleSheet("color: gray;")
         nl.addWidget(news_hint)
         news_tab.addWidget(news_box)
-        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab, news_tab):
+        bar = self._tabs.tabBar()
+        bar.moveTab(self._tabs.indexOf(phone_tab.parentWidget()), self._tabs.count() - 1)  # (made early, shown last)
+        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab, news_tab, phone_tab):
             tab.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -490,6 +532,9 @@ class SettingsDialog(QDialog):
             "keep_awake": self._keep_awake.isChecked(),
             "start_fullscreen": self._start_fullscreen.isChecked(),
             "tv_remote": self._tv_remote.isChecked(),
+            "phone_remote": self._phone_remote.isChecked(),
+            "remote_port": self._remote_port.value(),
+            "remote_pin": self._remote_pin.text(),
             "graphics": self._graphics.currentData(),
             "train_mode": self._train_mode.currentData(),
             "rail_key": self._rail_key.text().strip(),
@@ -512,3 +557,21 @@ class SettingsDialog(QDialog):
         if manual:
             values.update(location_name=self._place.name, latitude=self._place.latitude, longitude=self._place.longitude)
         return values
+
+
+def qr_pixmap(text: str, size: int) -> QPixmap:
+    from simple_info.core.remote_server import qr_matrix
+
+    matrix = qr_matrix(text)
+    cell = size / len(matrix)
+    pix = QPixmap(size, size)
+    pix.fill(QColor("white"))
+    p = QPainter(pix)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor("black"))
+    for y, row in enumerate(matrix):
+        for x, dark in enumerate(row):
+            if dark:
+                p.drawRect(int(x * cell), int(y * cell), int(cell + 1), int(cell + 1))
+    p.end()
+    return pix

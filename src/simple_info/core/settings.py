@@ -74,6 +74,10 @@ class Settings:
     start_fullscreen: bool = False
     # The TV's own remote over HDMI-CEC.
     tv_remote: bool = True
+    # The phone remote: a web page for phones on the home network.
+    phone_remote: bool = False
+    remote_port: int = 8765
+    remote_pin: str = ""
     # "auto" picks "light" on a Raspberry Pi: the moving backgrounds are
     # drawn at lower resolution and frame rate, which a Pi can keep up with.
     graphics: str = "auto"
@@ -89,6 +93,7 @@ _CHOICES = {
 _RANGES = {
     "cycle_seconds": (5, 3600),
     "page_seconds": (5, 600),
+    "remote_port": (1024, 65535),
     "board_page": (0, 99),
 }
 
@@ -147,6 +152,8 @@ class SettingsStore:
         for name in ("train_station_crs", "train_filter_crs"):
             code = getattr(self.settings, name)
             setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")
+        if not (self.settings.remote_pin.isdigit() and len(self.settings.remote_pin) <= 8):
+            self.settings.remote_pin = ""
         if self.settings.location_mode == "manual" and not self.settings.location_name:
             self.settings.location_mode = "auto"
 

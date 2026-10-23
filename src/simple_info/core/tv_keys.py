@@ -41,7 +41,7 @@ ACTIONS = {
     "KEY_EXIT": "previous", "KEY_BACK": "previous", "KEY_CHANNELDOWN": "previous", "KEY_PREVIOUSSONG": "previous",
     "KEY_INFO": "refresh", "KEY_EPG": "refresh",
     "KEY_PLAYPAUSE": "hold", "KEY_PAUSE": "hold", "KEY_PLAY": "hold",
-    "KEY_RED": "cycle", "KEY_GREEN": "refresh", "KEY_YELLOW": "weather_preview", "KEY_BLUE": "time_preview",
+    "KEY_RED": "cycle", "KEY_GREEN": "refresh", "KEY_YELLOW": "weather_preview", "KEY_BLUE": "phone_qr",
     **{f"KEY_NUMERIC_{n}": f"board_{n}" for n in range(1, 10)},
     **{f"KEY_{n}": f"board_{n}" for n in range(1, 10)},
 }

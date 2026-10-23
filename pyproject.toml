@@ -10,6 +10,7 @@ authors = [{ name = "Mike Hellyer" }]
 requires-python = ">=3.12"
 dependencies = [
     "PySide6",
+    "qrcode",  # the phone remote's QR code
     "platformdirs",
     "certifi",
     "jeepney; sys_platform == 'linux'",  # D-Bus, to keep the screen awake
@@ -23,6 +24,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "simple_info.gui" = ["resources/*.png"]
+"simple_info.core" = ["remote.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

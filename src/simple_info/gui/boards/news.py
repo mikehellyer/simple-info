@@ -104,6 +104,9 @@ class NewsBoard(Board):
     def page_count(self) -> int:
         return max(1, len(self.keys))
 
+    def page_names(self) -> list[str]:
+        return [nw.BY_KEY[k].name.replace("BBC News – ", "BBC ") for k in self.keys]
+
     def fetch_job(self):
         if not self.keys:
             return None

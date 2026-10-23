@@ -94,6 +94,16 @@ class TvBoard(Board):
     def page_count(self) -> int:
         return max(1, math.ceil(len(self.channel_ids) / ROWS_PER_PAGE))
 
+    def page_names(self) -> list[str]:
+        if self.page_count() < 2:
+            return []
+        names = {c.id: c.short_name for c in (self.listings.channels if self.listings else [])}
+        pages = []
+        for i in range(self.page_count()):
+            ids = self.channel_ids[i * ROWS_PER_PAGE:(i + 1) * ROWS_PER_PAGE]
+            pages.append(f"{names.get(ids[0], 'Channels')} – {names.get(ids[-1], str((i + 1) * ROWS_PER_PAGE))}")
+        return pages
+
     def fetch_job(self):
         if not self.channel_ids:
             return None

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import time
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Optional
@@ -18,6 +19,7 @@ from simple_info.core import cec
 from simple_info.core import weather as wx
 from simple_info.core.diagnostics import log_event
 from simple_info.core.keep_awake import KeepAwake
+from simple_info.core.remote_server import RemoteServer, qr_matrix
 from simple_info.core.platform_info import is_raspberry_pi
 from simple_info.core.self_update import download_asset, find_asset_for_this_platform, launch_installer
 from simple_info.core.settings import SettingsStore
@@ -56,6 +58,10 @@ class MainWindow(QMainWindow):
         self._pending_update = None
         self._last_action: dict[str, float] = {}
         self._tv_keys: Optional[TvKeyReader] = None
+        self._remote: Optional[RemoteServer] = None
+        self._remote_state: dict = {}
+        self._remote_timer = QTimer(self)
+        self._remote_timer.timeout.connect(self._poll_remote)
         self._cec_timer = QTimer(self)
         self._cec_timer.timeout.connect(self._register_tv_remote)
         self._tv_key_timer = QTimer(self)
@@ -138,8 +144,10 @@ class MainWindow(QMainWindow):
         self._act_refresh = self._action("Refresh now", ["R", k.Key_Green], lambda: self._once("refresh", self._refresh_now))
         self._act_preview_weather = self._action("Preview another weather", ["P", k.Key_Yellow],
                                                  lambda: self._once("weather_preview", self._cycle_weather_preview))
-        self._act_preview_time = self._action("Preview another time of day", ["T", k.Key_Blue],
+        self._act_preview_time = self._action("Preview another time of day", ["T"],
                                               lambda: self._once("time_preview", self._cycle_time_preview))
+        self._act_phone = self._action("Show the phone remote's QR code", ["Q", k.Key_Blue],
+                                       lambda: self._once("phone_qr", self._show_phone_remote))
         self._act_settings = self._action("Settings…", ["S", "Ctrl+,"], self._open_settings)
         self._act_about = self._action("About Simple-Info", None, self._about)
         self._act_quit = self._action("Quit", "Ctrl+Q", self.close)
@@ -150,7 +158,8 @@ class MainWindow(QMainWindow):
         boards = menu.addMenu("Boards")
         for action in self._board_actions:
             boards.addAction(action)
-        for action in (self._act_next, self._act_previous, self._act_page_next, self._act_page_previous, self._act_pause, self._act_cycle, None, self._act_full, self._act_refresh, None,
+        for action in (self._act_next, self._act_previous, self._act_page_next, self._act_page_previous, self._act_pause, self._act_cycle,
+                       self._act_phone, None, self._act_full, self._act_refresh, None,
                        self._act_preview_weather, self._act_preview_time, None, self._act_settings, self._act_about, self._act_quit):
             menu.addSeparator() if action is None else menu.addAction(action)
         menu.exec(self._stage.mapToGlobal(pos))
@@ -209,6 +218,82 @@ class MainWindow(QMainWindow):
 
     # --- the TV remote
 
+    # --- the phone remote
+
+    def _apply_phone_remote(self) -> None:
+        s = self._store.settings
+        wanted = s.phone_remote
+        if self._remote is not None and (not wanted or self._remote.port != s.remote_port or self._remote.pin != s.remote_pin):
+            self._remote.stop()
+            self._remote = None
+            self._remote_timer.stop()
+        if wanted and self._remote is None:
+            self._remote = RemoteServer(lambda: self._remote_state, s.remote_port, s.remote_pin)
+            if self._remote.start():
+                log_event(f"phone remote at {self._remote.url()}")
+                self._remote_state = self._make_remote_state()
+                self._remote_timer.start(150)
+            else:
+                log_event(f"phone remote couldn't start: {self._remote.error}")
+                self._stage.toast(f"The phone remote couldn't start (port {s.remote_port} in use?)", 6)
+                self._remote = None
+
+    def remote_url(self) -> Optional[str]:
+        return self._remote.url() if self._remote is not None else None
+
+    def _show_phone_remote(self) -> None:
+        url = self.remote_url()
+        if url is None:
+            self._stage.toast("The phone remote is off: turn it on in Settings (S) → General", 5)
+            return
+        self._stage.show_qr(qr_matrix(url), url)
+
+    def _make_remote_state(self) -> dict:
+        s = self._store.settings
+        board = self._stage.board
+        now = datetime.now()
+        accent = board.accent
+        return {
+            "version": __version__,
+            "time": now.strftime("%H:%M") if s.clock_24h else now.strftime("%I:%M %p").lstrip("0"),
+            "board": board.key,
+            "board_title": board.title,
+            "accent": f"#{accent.red():02x}{accent.green():02x}{accent.blue():02x}",
+            "boards": [{"key": b.key, "title": b.title} for b in self._boards],
+            "page": board.page,
+            "pages": board.page_names(),
+            "paused": self._stage.paused,
+            "cycle": s.cycle_boards,
+            "fullscreen": self.isFullScreen(),
+        }
+
+    def _poll_remote(self) -> None:
+        if self._remote is None:
+            return
+        for action, value in self._remote.take_commands():
+            self._remote_command(action, value)
+        self._remote_state = self._make_remote_state()  # (swapped whole, so the server thread never sees half)
+
+    def _remote_command(self, action: str, value) -> None:
+        if action == "board":
+            self._stage.show_key(value)
+        elif action == "page":
+            board = self._stage.board
+            if value == "next":
+                self._stage.turn_page(1)
+            elif value == "previous":
+                self._stage.turn_page(-1)
+            elif isinstance(value, int) and value < board.page_count() and value != board.page:
+                self._stage.turn_page(value - board.page)
+        elif action == "pause":
+            self._toggle_pause()
+        elif action == "cycle":
+            self._toggle_cycle()
+        elif action == "refresh":
+            self._refresh_now()
+        elif action == "fullscreen":
+            self._toggle_full_screen()
+
     def _apply_tv_remote(self) -> None:
         if self._store.settings.tv_remote and cec.cec_devices():
             if not self._cec_timer.isActive():
@@ -254,6 +339,7 @@ class MainWindow(QMainWindow):
                 "hold": lambda: self._once("hold", self._toggle_pause),
                 "weather_preview": lambda: self._once("weather_preview", self._cycle_weather_preview),
                 "time_preview": lambda: self._once("time_preview", self._cycle_time_preview),
+                "phone_qr": lambda: self._once("phone_qr", self._show_phone_remote),
             }[action]()
 
     # --- settings
@@ -273,9 +359,10 @@ class MainWindow(QMainWindow):
             self._keep_awake.stop()
             log_event("no longer keeping the screen awake")
         self._apply_tv_remote()
+        self._apply_phone_remote()
 
     def _open_settings(self) -> None:
-        dialog = SettingsDialog(self._store.settings, self._runner, self, cache_dir=self._cache)
+        dialog = SettingsDialog(self._store.settings, self._runner, self, cache_dir=self._cache, remote_url=self.remote_url())
         if dialog.exec():
             self._store.update(**dialog.values())
         self._apply_settings()
@@ -383,6 +470,8 @@ class MainWindow(QMainWindow):
         self._update_banner.set_busy(False)
 
     def closeEvent(self, event) -> None:
+        if self._remote is not None:
+            self._remote.stop()
         self._stage.shutdown()
         self._service_timer.stop()
         self._keep_awake.stop()

@@ -41,8 +41,9 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(src / "simple_info" / "gui" / "resources" / "icon.png"), "simple_info/gui/resources"),
+        (str(src / "simple_info" / "core" / "remote.html"), "simple_info/core"),
     ],
-    hiddenimports=(["jeepney", "jeepney.io.blocking"] if sys.platform.startswith("linux") else []),
+    hiddenimports=["qrcode"] + (["jeepney", "jeepney.io.blocking"] if sys.platform.startswith("linux") else []),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
