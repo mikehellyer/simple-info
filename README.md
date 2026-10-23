@@ -40,7 +40,7 @@ Boards so far:
    While a game is on, its competition is checked every minute; the rest
    every 10 minutes. Choose the competitions in Settings → Sport: the
    Premier League, Championship, FA Cup, Scottish Premiership,
-   Championship, League One and League Two, Champions and Europa League, La Liga, Bundesliga, Serie
+   Championship, League One and League Two, the Scottish Cup, Champions and Europa League, La Liga, Bundesliga, Serie
    A, Ligue 1, MLS, the World Cup, Major League Baseball, international
    (or all) cricket, the Six Nations, Premiership Rugby, the URC,
    Champions Cup, Rugby Championship, Top 14, Super Rugby and rugby
@@ -169,6 +169,7 @@ Central Bank's daily reference rates, read through
 [Freeview EPG](https://github.com/dp247/Freeview-EPG), rebuilt twice a day and
 downloaded at most every six hours. Sport comes from ESPN's public
 scoreboards, except Scottish League One and Two (which ESPN no longer
-keeps up to date): those come from BBC Sport. Your rough
+keeps up to date) and the Scottish Cup (where the BBC names the rounds):
+those come from BBC Sport. Your rough
 location comes from [ipwho.is](https://ipwho.is/), unless you choose a
 place in Settings.

@@ -339,3 +339,14 @@ def test_the_remotes_play_pause_button_pauses():
     from simple_info.core import tv_keys
 
     assert tv_keys.ACTIONS["KEY_PLAYPAUSE"] == "hold" and tv_keys.ACTIONS["KEY_PAUSE"] == "hold"
+
+
+def test_day_headings_say_when_a_fixture_is_a_week_or_more_away():
+    from datetime import datetime
+
+    from simple_info.gui.boards.sport import _day_label
+
+    now = datetime(2026, 10, 23, 14, 0)
+    assert _day_label(datetime(2026, 10, 24, 15, 0), now) == "Tomorrow"
+    assert _day_label(datetime(2026, 10, 27, 19, 45), now) == "Tuesday 27 October"
+    assert _day_label(datetime(2026, 10, 31, 15, 0), now) == "Saturday 31 October  ·  in 8 days"

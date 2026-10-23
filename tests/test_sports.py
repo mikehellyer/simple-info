@@ -193,3 +193,32 @@ def test_favourites_round_trip():
     assert sp.parse_favourites(sp.format_favourites(favs)) == favs
     team = sp.Team("Celtic", "CEL", id="256")
     assert team.is_one_of({"256"}) and not team.is_one_of(set()) and sp.Team("England", "ENG").is_one_of({"England"})
+
+
+def test_cup_rounds_postponements_and_penalties_from_the_bbc():
+    payload = {"eventGroups": [{"secondaryGroups": [{"events": [
+        {"id": "c1", "startDateTime": "2026-10-24T14:00:00Z", "status": "PreEvent", "eventGroupingLabel": "Scotland - Scottish Cup - 2nd Round",
+         "home": {"fullName": "Stirling University", "urn": "urn:su"}, "away": {"fullName": "Elgin City", "urn": "urn:elgin"}},
+        {"id": "c2", "startDateTime": "2026-10-23T18:30:00Z", "status": "Postponed", "statusComment": {"value": "Match Postponed"},
+         "periodLabel": {"value": "Match Postponed"}, "eventGroupingLabel": "Scotland - Scottish Cup - 2nd Round",
+         "home": {"fullName": "Penicuik Athletic", "urn": "urn:pen"}, "away": {"fullName": "Clyde", "urn": "urn:clyde"}},
+        {"id": "c3", "startDateTime": "2026-10-03T14:00:00Z", "status": "PostEvent", "periodLabel": {"value": "PENS"}, "winner": "home",
+         "eventGroupingLabel": "Scotland - Scottish League Two",
+         "home": {"fullName": "A", "urn": "urn:a", "score": "1"}, "away": {"fullName": "B", "urn": "urn:b", "score": "1"}},
+    ]}]}]}
+    tie, postponed, pens = sp.parse_bbc_scores(payload)
+    assert (tie.state, tie.stage) == (sp.PRE, "2nd Round")
+    assert (postponed.state, postponed.detail) == (sp.DONE, "Match Postponed") and not postponed.home.score
+    assert (pens.detail, pens.home.winner, pens.stage) == ("PENS", True, "")  # (a league's label has no round)
+    assert "soccer/sco.tennents" in sp.BBC_TOURNAMENTS and sp.BY_KEY["soccer/sco.tennents"].name == "Scottish Cup"
+
+
+def test_a_cups_favourite_teams_come_from_its_ties():
+    payload = {"eventGroups": [{"secondaryGroups": [{"events": [
+        {"id": "c1", "startDateTime": "2026-10-24T14:00:00Z", "status": "PreEvent",
+         "home": {"fullName": "Stirling University", "urn": "urn:su"}, "away": {"fullName": "Elgin City", "urn": "urn:elgin"}}]}]}]}
+
+    def get(url):
+        return {"tournaments": []} if "football-table" in url else payload
+
+    assert sp.fetch_teams("soccer/sco.tennents", get) == [("urn:elgin", "Elgin City"), ("urn:su", "Stirling University")]

@@ -59,7 +59,10 @@ def _day_label(d: datetime, now: datetime) -> str:
         return "Yesterday"
     if delta == 1:
         return "Tomorrow"
-    return f"{d:%A} {d.day} {d:%B}"
+    label = f"{d:%A} {d.day} {d:%B}"
+    if delta >= 7:  # so a fixture next week can't be taken for this week's
+        label += f"  ·  in {delta} days"
+    return label
 
 
 class SportBoard(Board):
@@ -285,7 +288,8 @@ class SportBoard(Board):
         for m in matches:
             label = _day_label(m.local_start(), now)
             if label != day:
-                out.append(("day", label))
+                stages = {x.stage for x in days[label] if x.stage}
+                out.append(("day", f"{label}  ·  {stages.pop()}" if len(stages) == 1 else label))
                 day = label
             out.append(("match", m))
         return out
@@ -324,6 +328,7 @@ class SportBoard(Board):
             else:
                 p.drawText(QRectF(box.right() + 34, rect.top(), name_w, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, name)
                 self._chip(p, QRectF(box.right() + 10, rect.center().y() - 8, 12, 16), self._team_colour(team))
+                note_x = box.right() + 34 + QFontMetricsF(f).horizontalAdvance(name) + 16  # (just after the away side)
         # the score (or the start time)
         p.setPen(Qt.NoPen)
         if m.state == sp.LIVE:
@@ -338,14 +343,27 @@ class SportBoard(Board):
             start = m.local_start()
             text = start.strftime("%H:%M") if self.clock_24h else start.strftime("%I:%M%p").lstrip("0").lower()
             p.setFont(font(22))
+        elif m.state == sp.DONE and not (m.home.score or m.away.score):
+            # never played: postponed, abandoned…
+            text = next((w for w in ("Postponed", "Abandoned", "Cancelled", "Suspended") if w.lower() in m.detail.lower()),
+                        m.detail or "–")
+            p.setFont(font(17, QFont.DemiBold))
+            p.setPen(rgb(255, 190, 120))
         else:
             text = f"{m.home.score or 0} – {m.away.score or 0}"
             p.setFont(font(25, QFont.Bold))
-        p.drawText(box, Qt.AlignCenter, text)
-        if m.state == sp.LIVE and m.detail:
+        p.drawText(box, Qt.AlignCenter, QFontMetricsF(p.font()).elidedText(text, Qt.ElideRight, box.width() - 8))
+        note, colour = "", rgb(255, 170, 160)
+        if m.state == sp.LIVE:
+            note = m.detail
+        elif m.state == sp.DONE and m.detail.upper() in ("AET", "PENS", "PEN", "AP"):
+            # settled in extra time or on penalties
+            note, colour = ("aet" if m.detail.upper() == "AET" else "pens"), DIM
+        if note:
             p.setFont(font(15, QFont.DemiBold))
-            p.setPen(rgb(255, 170, 160))
-            p.drawText(QRectF(rect.right() - 90, rect.top(), 90, rect.height()), Qt.AlignRight | Qt.AlignVCenter, m.detail)
+            p.setPen(colour)
+            x = min(note_x, rect.right() - 60)
+            p.drawText(QRectF(x, rect.top(), rect.right() - x, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, note)
 
     def _paint_tables(self, p: QPainter, data: sp.CompetitionData) -> None:
         self._card(p, TABLE)

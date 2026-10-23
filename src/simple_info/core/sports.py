@@ -60,6 +60,7 @@ COMPETITIONS = [
     Competition("soccer/sco.2", "Scottish Championship"),
     Competition("soccer/sco.3", "Scottish League One"),
     Competition("soccer/sco.4", "Scottish League Two"),
+    Competition("soccer/sco.tennents", "Scottish Cup"),
     Competition("soccer/uefa.champions", "Champions League"),
     Competition("soccer/uefa.europa", "Europa League"),
     Competition("soccer/esp.1", "La Liga"),
@@ -111,6 +112,7 @@ class Match:
     summary: str = ""  # cricket: "Victoria require 173 runs"
     competition: str = ""  # cricket: the series or tournament
     kind: str = ""  # cricket: "Test", "ODI", "T20I"…
+    stage: str = ""  # cups: the round, "2nd Round", "Quarter-final"…
 
     def local_start(self) -> datetime:
         return datetime.fromisoformat(self.start.replace("Z", "+00:00")).astimezone()
@@ -381,7 +383,13 @@ def fetch_teams(key: str, get: Callable = _get_json) -> list[tuple[str, str]]:
         return [(n, n) for n in CRICKET_NATIONS]
     if key in BBC_TOURNAMENTS:
         tables = parse_bbc_table(get(bbc_table_url(key)) or {})
-        return sorted(((team.id, team.name) for t in tables for _, team, _ in t.rows), key=lambda t: t[1])
+        teams = {team.id: team.name for t in tables for _, team, _ in t.rows}
+        if not teams:  # a cup has no table: take the teams from this month's and last month's ties
+            today = datetime.now().date()
+            for start, end in bbc_ranges(today)[0] + bbc_ranges(today)[1][:1]:
+                for m in parse_bbc_scores(get(bbc_scores_url(key, start, end, today)) or {}):
+                    teams[m.home.id], teams[m.away.id] = m.home.name, m.away.name
+        return sorted(teams.items(), key=lambda t: t[1])
     payload = get(f"{SITE_URL}/{comp.sport}/{comp.league}/teams")
     return parse_teams(payload) if isinstance(payload, dict) else []
 
@@ -447,6 +455,7 @@ def fetch_cricket(key: str, get: Callable = _get_json) -> Optional[CompetitionDa
 BBC_TOURNAMENTS = {
     "soccer/sco.3": "scottish-league-one",
     "soccer/sco.4": "scottish-league-two",
+    "soccer/sco.tennents": "scottish-cup",  # (ESPN has it too, but the BBC names the rounds)
 }
 BBC_URL = "https://web-cdn.api.bbci.co.uk/wc-poll-data/container"
 _BBC_STATES = {"PreEvent": PRE, "MidEvent": LIVE, "PostEvent": DONE}
@@ -506,6 +515,7 @@ def parse_bbc_scores(payload: dict) -> list[Match]:
                 if status not in _BBC_STATES and label:  # postponed, abandoned…
                     state = DONE
                 winner = _text(e.get("winner"))
+                grouping = _text(e.get("eventGroupingLabel")).split(" - ")
                 matches.append(Match(
                     id=_text(e.get("id")),
                     start=_text(e.get("startDateTime")),
@@ -513,6 +523,8 @@ def parse_bbc_scores(payload: dict) -> list[Match]:
                     detail=label,
                     home=_bbc_team(e["home"], winner, "home"),
                     away=_bbc_team(e["away"], winner, "away"),
+                    # "Scotland - Scottish Cup - 2nd Round": a cup's round comes last
+                    stage=grouping[-1] if len(grouping) >= 3 else "",
                 ))
     return matches
 
