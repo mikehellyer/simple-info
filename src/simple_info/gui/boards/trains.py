@@ -140,6 +140,7 @@ class TrainBoard(Board):
         self.filter_crs = ""
         self.filter_name = ""
         self.clock_24h = True
+        self._key = ""  # your Rail Data Marketplace key, if any
         self.boards: dict[str, tr.TrainBoard] = {}
         self.status = ""
         self.offline = False
@@ -151,9 +152,9 @@ class TrainBoard(Board):
 
     def configure(self, settings: Settings) -> None:
         self.clock_24h = settings.clock_24h
-        wanted = (settings.train_station_crs, settings.train_mode, settings.train_filter_crs)
-        if wanted != (self.crs, self.mode, self.filter_crs):
-            self.crs, self.mode, self.filter_crs = wanted
+        wanted = (settings.train_station_crs, settings.train_mode, settings.train_filter_crs, settings.rail_key.strip())
+        if wanted != (self.crs, self.mode, self.filter_crs, self._key):
+            self.crs, self.mode, self.filter_crs, self._key = wanted
             self.boards = {}
             self.offline = False
             self.status = "Fetching the trains…" if self.crs else ""
@@ -168,10 +169,10 @@ class TrainBoard(Board):
     def fetch_job(self):
         if not self.crs:
             return None
-        crs, kinds, filter_crs = self.crs, self._kinds(), self.filter_crs
+        crs, kinds, filter_crs, key = self.crs, self._kinds(), self.filter_crs, self._key
 
         def job():
-            return {kind: tr.fetch_board(crs, kind, 10, filter_crs) for kind in kinds}
+            return {kind: tr.fetch_board(crs, kind, 10, filter_crs, key) for kind in kinds}
 
         return job
 
@@ -260,6 +261,8 @@ class TrainBoard(Board):
             note = f"{'Calling at' if kind == tr.DEPARTURES else 'Coming from'} {self.filter_name or self.filter_crs}"
         if self.offline:
             note = (note + " · " if note else "") + "offline — showing the last trains"
+        if board is not None and board.note:
+            note = (note + " · " if note else "") + f"{board.note} — using Huxley 2"
         if note:
             p.setFont(font(20))
             p.setPen(AMBER_DIM)

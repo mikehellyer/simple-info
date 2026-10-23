@@ -131,7 +131,11 @@ venv/bin/pytest
 Weather by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0). Train
 times are National Rail Enquiries' live departure boards (Darwin), read
 through the free [Huxley 2](https://huxley2.azurewebsites.net/) service, so
-no sign-up is needed, and nothing but station codes is sent to it. The train
+no sign-up is needed, and nothing but station codes is sent to it. With
+your own free key from the [Rail Data Marketplace](https://raildata.org.uk/)
+(the "Live Departure Board" product), put in Settings → Trains, departures
+come straight from National Rail instead; the key is sent only to National
+Rail, and Huxley 2 becomes the fallback. The train
 board carries the "Powered by National Rail Enquiries" credit. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from

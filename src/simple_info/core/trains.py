@@ -4,6 +4,12 @@ The data is National Rail's live departure boards (Darwin), read through
 Huxley 2 (https://huxley2.azurewebsites.net), a free public service that
 turns them into plain JSON and needs no sign-up. (It's someone else's
 server, so nothing private is ever sent to it: only station codes.)
+
+With your own key from the Rail Data Marketplace (raildata.org.uk, free),
+departures come straight from National Rail instead, and Huxley 2 is only
+the fallback. The key goes to National Rail's own server and nowhere else.
+Arrivals are a separate Marketplace product, so they still come through
+Huxley 2 (without the key).
 National Rail asks for its data to be credited "Powered by National Rail
 Enquiries", which the board shows.
 
@@ -16,6 +22,7 @@ import html
 import json
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -90,6 +97,8 @@ class TrainBoard:
     services: list[Service]
     messages: list[str]  # station notices, as plain text
     fetched_at: float
+    source: str = "Huxley 2"  # where it came from: "National Rail" (with your key) or "Huxley 2"
+    note: str = ""  # e.g. why your key wasn't used this time
 
 
 def _text(value) -> str:
@@ -163,7 +172,7 @@ def parse_board(payload: dict, kind: str, fetched_at: Optional[float] = None) ->
         ))
     messages = []
     for m in payload.get("nrccMessages") or []:
-        text = clean_message(m.get("value") if isinstance(m, dict) else str(m))
+        text = clean_message((m.get("value") or m.get("Value")) if isinstance(m, dict) else str(m))
         if text:
             messages.append(text)
     return TrainBoard(
@@ -193,10 +202,58 @@ def board_url(crs: str, kind: str, rows: int = 10, filter_crs: str = "", base_ur
     return f"{path}?{urllib.parse.urlencode({'expand': 'true'})}"
 
 
-def fetch_board(crs: str, kind: str, rows: int = 10, filter_crs: str = "",
+RDM_DEPARTURES_URL = "https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120"
+KEY_OK, KEY_REFUSED, KEY_UNREACHABLE = "ok", "refused", "unreachable"
+
+
+def rdm_departures_url(crs: str, rows: int = 10, filter_crs: str = "") -> str:
+    params = {"numRows": str(rows)}
+    if filter_crs:
+        params.update(filterCrs=filter_crs.upper(), filterType="to")
+    return f"{RDM_DEPARTURES_URL}/GetDepBoardWithDetails/{urllib.parse.quote(crs.upper())}?{urllib.parse.urlencode(params)}"
+
+
+def fetch_rdm_departures(crs: str, key: str, rows: int = 10, filter_crs: str = "") -> tuple[str, Optional[TrainBoard]]:
+    """Departures straight from National Rail with your own Marketplace key:
+    (KEY_OK, board), (KEY_REFUSED, None) or (KEY_UNREACHABLE, None)."""
+    request = urllib.request.Request(rdm_departures_url(crs, rows, filter_crs),
+                                     headers={"User-Agent": "Simple-Info/1", "Accept": "application/json", "x-apikey": key})
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS, context=SSL_CONTEXT) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        return (KEY_REFUSED if error.code in (401, 403) else KEY_UNREACHABLE), None
+    except (OSError, ValueError):
+        return KEY_UNREACHABLE, None
+    if isinstance(data, dict) and "fault" in data:
+        return KEY_REFUSED, None
+    if not isinstance(data, dict) or "locationName" not in data:
+        return KEY_UNREACHABLE, None
+    try:
+        board = parse_board(data, DEPARTURES)
+    except (TypeError, ValueError, AttributeError):
+        return KEY_UNREACHABLE, None
+    board.source = "National Rail"
+    return KEY_OK, board
+
+
+def fetch_board(crs: str, kind: str, rows: int = 10, filter_crs: str = "", key: str = "",
                 base_url: str = HUXLEY_URL) -> Optional[TrainBoard]:
     if not re.fullmatch(r"[A-Za-z]{3}", crs or ""):
         return None
+    note = ""
+    if key and kind == DEPARTURES:
+        outcome, board = fetch_rdm_departures(crs, key, rows, filter_crs)
+        if board is not None:
+            return board
+        note = "National Rail refused your key" if outcome == KEY_REFUSED else "National Rail didn't answer"
+    board = _fetch_huxley(crs, kind, rows, filter_crs, base_url)
+    if board is not None:
+        board.note = note
+    return board
+
+
+def _fetch_huxley(crs: str, kind: str, rows: int, filter_crs: str, base_url: str) -> Optional[TrainBoard]:
     data = _get_json(board_url(crs, kind, rows, filter_crs, base_url))
     if not isinstance(data, dict) or "locationName" not in data:
         return None

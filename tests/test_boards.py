@@ -116,7 +116,7 @@ def test_train_board_fetches_for_the_chosen_station(app, monkeypatch):
     assert board.fetch_job() is None  # no station yet: nothing to fetch
     asked = []
 
-    def fake_fetch(crs, kind, rows, filter_crs):
+    def fake_fetch(crs, kind, rows, filter_crs, key=""):
         asked.append((crs, kind, filter_crs))
         return tr.parse_board(PAYLOAD, kind)
 

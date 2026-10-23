@@ -30,6 +30,9 @@ class Settings:
     train_mode: str = "departures"  # "departures", "arrivals" or "both"
     train_filter_name: str = ""
     train_filter_crs: str = ""
+    # Your own Rail Data Marketplace key (raildata.org.uk), for departures
+    # straight from National Rail. Kept only here, sent only to National Rail.
+    rail_key: str = ""
 
     # The currency board: what one of `currency_base` buys in each of
     # `currency_codes` (comma-separated, shown in that order), and whether

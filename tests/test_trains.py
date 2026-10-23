@@ -107,3 +107,61 @@ def test_search_stations_ranks_the_best_match_first():
     with patch("urllib.request.urlopen", side_effect=lambda *a, **k: next(responses)):
         assert tr.search_stations("kgx") == [tr.Station("London Kings Cross", "KGX")]
     assert tr.search_stations("  ") == []
+
+
+class _Http:
+    def __init__(self, data, code=200):
+        self._data = json.dumps(data).encode()
+
+    def read(self):
+        return self._data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_departures_come_from_national_rail_with_your_key_and_never_send_it_to_huxley():
+    sent = []
+
+    def fake(request, **kwargs):
+        sent.append((request.full_url, dict(request.header_items())))
+        return _Http(PAYLOAD)
+
+    with patch("urllib.request.urlopen", side_effect=fake):
+        board = tr.fetch_board("KGX", tr.DEPARTURES, 10, "yrk", key="secret-key")
+    assert board.source == "National Rail" and board.note == "" and len(board.services) == 4
+    url, headers = sent[0]
+    assert url.startswith(tr.RDM_DEPARTURES_URL + "/GetDepBoardWithDetails/KGX") and "filterCrs=YRK" in url
+    assert headers.get("X-apikey") == "secret-key" and "secret-key" not in url
+    sent.clear()
+    with patch("urllib.request.urlopen", side_effect=fake):
+        board = tr.fetch_board("KGX", tr.ARRIVALS, 10, key="secret-key")  # arrivals: Huxley, without the key
+    assert board.source == "Huxley 2"
+    assert all("secret-key" not in u and "secret-key" not in h.values() for u, h in sent) and "huxley2" in sent[0][0]
+
+
+def test_a_refused_key_falls_back_to_huxley_and_says_so():
+    import urllib.error
+
+    def fake(request, **kwargs):
+        if "raildata" in request.full_url:
+            raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", {}, None)
+        assert "secret" not in str(request.header_items())
+        return _Http(PAYLOAD)
+
+    with patch("urllib.request.urlopen", side_effect=fake):
+        board = tr.fetch_board("KGX", tr.DEPARTURES, key="secret")
+        assert tr.fetch_rdm_departures("KGX", "secret")[0] == tr.KEY_REFUSED
+    assert board.source == "Huxley 2" and board.note == "National Rail refused your key"
+    with patch("urllib.request.urlopen", return_value=_Http({"fault": {"faultstring": "Invalid ApiKey"}})):
+        assert tr.fetch_rdm_departures("KGX", "bad") == (tr.KEY_REFUSED, None)
+    with patch("urllib.request.urlopen", side_effect=OSError("offline")):
+        assert tr.fetch_rdm_departures("KGX", "k") == (tr.KEY_UNREACHABLE, None)
+
+
+def test_marketplace_messages_use_a_capital_v():
+    board = tr.parse_board({"locationName": "X", "nrccMessages": [{"Value": "\nDelays <a href='x'>here</a>."}]}, tr.DEPARTURES)
+    assert board.messages == ["Delays here."]

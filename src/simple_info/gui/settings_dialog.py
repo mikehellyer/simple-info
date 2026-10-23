@@ -188,10 +188,25 @@ class SettingsDialog(QDialog):
         self._train_filter = StationPicker(runner, settings.train_filter_name, settings.train_filter_crs,
                                            "Optional: only trains calling at…", optional=True)
         tl.addRow("Only trains to/from", self._train_filter)
-        credit = QLabel("Live times from National Rail Enquiries, through the free Huxley 2 service — no account needed.")
-        credit.setStyleSheet("color: gray;")
-        credit.setWordWrap(True)
-        tl.addRow("", credit)
+        key_row = QHBoxLayout()
+        self._rail_key = QLineEdit(settings.rail_key)
+        self._rail_key.setEchoMode(QLineEdit.Password)
+        self._rail_key.setPlaceholderText("optional: your Rail Data Marketplace consumer key")
+        show = QPushButton("Show")
+        show.setCheckable(True)
+        show.toggled.connect(lambda on: self._rail_key.setEchoMode(QLineEdit.Normal if on else QLineEdit.Password))
+        test = QPushButton("Test")
+        test.clicked.connect(self._test_rail_key)
+        key_row.addWidget(self._rail_key, 1)
+        key_row.addWidget(show)
+        key_row.addWidget(test)
+        tl.addRow("Your key", key_row)
+        self._key_result = QLabel(
+            "With your own key, departures come straight from National Rail (the key is kept on this computer and "
+            "sent only to National Rail). Without one, or for arrivals, times come through the free Huxley 2 service.")
+        self._key_result.setStyleSheet("color: gray;")
+        self._key_result.setWordWrap(True)
+        tl.addRow("", self._key_result)
         trains_tab.addWidget(trains)
 
         # Boards
@@ -430,6 +445,27 @@ class SettingsDialog(QDialog):
             item.setCheckState(Qt.Checked if cid in self._tv_chosen else Qt.Unchecked)
             self._tv_list.addItem(item)
 
+    def _test_rail_key(self) -> None:
+        key = self._rail_key.text().strip()
+        if not key:
+            self._key_result.setText("Type or paste your key first.")
+            return
+        station = self._station.station
+        crs = station.crs if station else "KGX"
+        self._key_result.setText("Asking National Rail…")
+        self._runner.run(lambda: tr.fetch_rdm_departures(crs, key, 5), self._on_key_tested,
+                         lambda error: self._on_key_tested((tr.KEY_UNREACHABLE, None)))
+
+    def _on_key_tested(self, result) -> None:
+        outcome, board = result
+        if outcome == tr.KEY_OK and board is not None:
+            self._key_result.setText(f"✔ Your key works: National Rail sent {len(board.services)} departures from {board.station}.")
+        elif outcome == tr.KEY_REFUSED:
+            self._key_result.setText("✘ National Rail refused this key. Check it's the consumer key for the "
+                                     "'Live Departure Board' product, and that the subscription is approved.")
+        else:
+            self._key_result.setText("✘ Couldn't reach National Rail just now (no connection?). Try again in a moment.")
+
     def _tab(self, title: str) -> QVBoxLayout:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -456,6 +492,7 @@ class SettingsDialog(QDialog):
             "tv_remote": self._tv_remote.isChecked(),
             "graphics": self._graphics.currentData(),
             "train_mode": self._train_mode.currentData(),
+            "rail_key": self._rail_key.text().strip(),
             "currency_base": self._base.currentData(),
             "currency_codes": ",".join(self._chosen_codes()),
             "currency_crypto": self._crypto.isChecked(),
