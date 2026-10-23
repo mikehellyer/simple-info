@@ -13,6 +13,7 @@ ASSETS = [
     ("Simple-Info-0.2.0-Windows-Setup.exe", "https://dl/win.exe"),
     ("Simple-Info-0.2.0-macOS.dmg", "https://dl/mac.dmg"),
     ("simple-info_0.2.0_amd64.deb", "https://dl/lin.deb"),
+    ("simple-info_0.2.0_arm64.deb", "https://dl/pi.deb"),
 ]
 
 
@@ -27,8 +28,14 @@ def test_finds_macos_asset():
 
 
 def test_finds_linux_asset():
+    # (the processor is given, so this holds whatever machine runs the tests)
     with patch("sys.platform", "linux"):
-        assert find_asset_for_this_platform(ASSETS) == "https://dl/lin.deb"
+        assert find_asset_for_this_platform(ASSETS, arch="amd64") == "https://dl/lin.deb"
+
+
+def test_finds_the_raspberry_pi_asset():
+    with patch("sys.platform", "linux"):
+        assert find_asset_for_this_platform(ASSETS, arch="arm64") == "https://dl/pi.deb"
 
 
 def test_returns_none_when_no_matching_asset():
