@@ -222,3 +222,25 @@ def test_a_cups_favourite_teams_come_from_its_ties():
         return {"tournaments": []} if "football-table" in url else payload
 
     assert sp.fetch_teams("soccer/sco.tennents", get) == [("urn:elgin", "Elgin City"), ("urn:su", "Stirling University")]
+
+
+def test_league_cup_group_tables_are_named_and_dropped_for_the_knockouts():
+    groups = {"tournaments": [{"name": "League Cup", "stages": [{"name": "Group Stage", "rounds": [
+        {"name": "Group A", "participants": [{"rank": 1, "name": "Aberdeen", "urn": "urn:abe", "matchesPlayed": 4, "points": 12}]},
+        {"name": "Group B", "participants": [{"rank": 1, "name": "Dundee United", "urn": "urn:dun", "matchesPlayed": 4, "points": 10}]},
+    ]}]}]}
+    assert [t.name for t in sp.parse_bbc_table(groups)] == ["Group A", "Group B"]
+    assert sp.parse_bbc_table(BBC_TABLE)[0].name == "Scottish League One"  # (one table: the league's name)
+
+    def scores(stage):
+        return {"eventGroups": [{"secondaryGroups": [{"events": [
+            {"id": stage, "startDateTime": "2026-10-25T15:00:00Z", "status": "PreEvent",
+             "eventGroupingLabel": f"Scotland - League Cup - {stage}",
+             "home": {"fullName": "Rangers", "urn": "urn:ran"}, "away": {"fullName": "Aberdeen", "urn": "urn:abe"}}]}]}]}
+
+    for stage, tables in (("Semi-finals", 0), ("Group A", 2)):
+        def get(url, stage=stage):
+            return groups if "football-table" in url else scores(stage) if "scores-fixtures" in url else None
+
+        data = sp.fetch_competition("soccer/sco.cis", date(2026, 10, 23), {}, get)
+        assert data.name == "Scottish League Cup" and len(data.tables) == tables

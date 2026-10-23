@@ -61,6 +61,7 @@ COMPETITIONS = [
     Competition("soccer/sco.3", "Scottish League One"),
     Competition("soccer/sco.4", "Scottish League Two"),
     Competition("soccer/sco.tennents", "Scottish Cup"),
+    Competition("soccer/sco.cis", "Scottish League Cup"),
     Competition("soccer/uefa.champions", "Champions League"),
     Competition("soccer/uefa.europa", "Europa League"),
     Competition("soccer/esp.1", "La Liga"),
@@ -456,6 +457,7 @@ BBC_TOURNAMENTS = {
     "soccer/sco.3": "scottish-league-one",
     "soccer/sco.4": "scottish-league-two",
     "soccer/sco.tennents": "scottish-cup",  # (ESPN has it too, but the BBC names the rounds)
+    "soccer/sco.cis": "scottish-league-cup",
 }
 BBC_URL = "https://web-cdn.api.bbci.co.uk/wc-poll-data/container"
 _BBC_STATES = {"PreEvent": PRE, "MidEvent": LIVE, "PostEvent": DONE}
@@ -543,7 +545,9 @@ def parse_bbc_table(payload: dict) -> list[Table]:
                                  [str(p.get("matchesPlayed", 0)), str(p.get("wins", 0)), str(p.get("draws", 0)),
                                   str(p.get("losses", 0)), f"{gd:+d}" if gd else "0", str(p.get("points", 0))]))
                 if rows:
-                    tables.append(Table(_text(tournament.get("name")) or _text(stage.get("name")),
+                    # a cup's groups are named ("Group A"); a league's one table takes the league's name
+                    grouped = len(stage.get("rounds") or []) > 1 and _text(rnd.get("name"))
+                    tables.append(Table(_text(rnd.get("name")) if grouped else (_text(tournament.get("name")) or _text(stage.get("name"))),
                                         ["P", "W", "D", "L", "GD", "Pts"], rows))
     return tables
 
@@ -611,4 +615,9 @@ def fetch_bbc(key: str, today: date, cache: dict, get: Callable = _get_json) -> 
     for t in (tables[1] if tables else []):
         for _, team, _ in t.rows:
             team.colour = team.colour or colours.get(team.name.lower(), "")
-    return CompetitionData(key, BY_KEY[key].name, keep, tables[1] if tables else [], time.time())
+    shown = tables[1] if tables else []
+    # a cup's group tables are over and done with once it's into the knockout rounds
+    latest = max((m for m in keep if m.stage), key=lambda m: m.start, default=None)
+    if latest is not None and shown and all(t.name.startswith("Group") for t in shown) and not latest.stage.startswith("Group"):
+        shown = []
+    return CompetitionData(key, BY_KEY[key].name, keep, shown, time.time())

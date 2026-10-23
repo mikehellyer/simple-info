@@ -368,7 +368,8 @@ class SportBoard(Board):
     def _paint_tables(self, p: QPainter, data: sp.CompetitionData) -> None:
         self._card(p, TABLE)
         inner = TABLE.adjusted(22, 16, -22, -14)
-        tables = data.tables[:2]
+        # (a cup's group stage has several tables: the favourite's group first)
+        tables = sorted(data.tables, key=lambda t: not any(team.is_one_of(self._fav) for _, team, _ in t.rows))[:2]
         row = 29.0
         head = 30.0
         total_rows = int((inner.height() - len(tables) * (head * 2 + 6)) // row)
