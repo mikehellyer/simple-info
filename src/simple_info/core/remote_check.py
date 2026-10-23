@@ -89,7 +89,7 @@ def check_tv() -> None:
     say(f"Linux key presses from the remote: {', '.join(keys) or 'none'}")
     if not reading:
         say(f"  -> couldn't read the remote's input device: {'; '.join(reader.errors) or 'none found'}")
-    unknown = sorted({k for k in keys if k not in ACTIONS} - {"KEY_UP", "KEY_DOWN", "KEY_LEFT", "KEY_RIGHT"})
+    unknown = sorted({k for k in keys if k not in ACTIONS})
     if unknown:
         say(f"  (not used by Simple-Info yet: {', '.join(unknown)})")
     presses = re.findall(r"USER_CONTROL_PRESSED.*?(?:ui-cmd|ui_cmd)[^:]*:\s*([\w\- ]+)", monitor, re.S)

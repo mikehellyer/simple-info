@@ -58,6 +58,7 @@ class MainWindow(QMainWindow):
         self._pending_update = None
         self._last_action: dict[str, float] = {}
         self._tv_keys: Optional[TvKeyReader] = None
+        self._unused_tv_keys: set[str] = set()
         self._remote: Optional[RemoteServer] = None
         self._remote_state: dict = {}
         self._remote_timer = QTimer(self)
@@ -174,6 +175,11 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
         else:
             self.show()
+        # take the keyboard focus, so keys from a keyboard (or a TV remote,
+        # through the desktop) come here straight away
+        self.raise_()
+        self.activateWindow()
+        self._stage.setFocus()
         self._act_full.setChecked(self.isFullScreen())
 
     def _toggle_full_screen(self) -> None:
@@ -244,7 +250,7 @@ class MainWindow(QMainWindow):
     def _show_phone_remote(self) -> None:
         url = self.remote_url()
         if url is None:
-            self._stage.toast("The phone remote is off: turn it on in Settings (S) → General", 5)
+            self._stage.toast("The phone remote is off: turn it on in Settings (S) → Phone remote", 5)
             return
         self._stage.show_qr(qr_matrix(url), url)
 
@@ -325,6 +331,9 @@ class MainWindow(QMainWindow):
         for key in self._tv_keys.take():
             action = TV_KEY_ACTIONS.get(key)
             if action is None:
+                if key not in self._unused_tv_keys:  # (logged once each, to see what a TV sends)
+                    self._unused_tv_keys.add(key)
+                    log_event(f"TV remote button with nothing to do: {key}")
                 continue
             if action.startswith("board_"):
                 index = int(action[6:]) - 1
@@ -334,6 +343,8 @@ class MainWindow(QMainWindow):
             {
                 "next": lambda: self._once("next", self._stage.next_board),
                 "previous": lambda: self._once("previous", self._stage.previous_board),
+                "page_next": lambda: self._once("page", lambda: self._stage.turn_page(1)),
+                "page_previous": lambda: self._once("page", lambda: self._stage.turn_page(-1)),
                 "refresh": lambda: self._once("refresh", self._refresh_now),
                 "cycle": lambda: self._once("cycle", self._toggle_cycle),
                 "hold": lambda: self._once("hold", self._toggle_pause),

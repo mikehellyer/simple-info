@@ -44,3 +44,10 @@ def test_buttons_map_to_board_actions():
     assert tv_keys.ACTIONS["KEY_EXIT"] == "previous"
     assert tv_keys.ACTIONS["KEY_NUMERIC_3"] == "board_3"
     assert tv_keys.ACTIONS["KEY_RED"] == "cycle"
+
+
+def test_arrows_are_read_directly_too():
+    # (they reach the app through the desktop only while it has the focus)
+    assert tv_keys.ACTIONS["KEY_LEFT"] == "previous" and tv_keys.ACTIONS["KEY_RIGHT"] == "next"
+    assert tv_keys.ACTIONS["KEY_UP"] == "page_previous" and tv_keys.ACTIONS["KEY_DOWN"] == "page_next"
+    assert tv_keys.ACTIONS["KEY_ENTER"] == "next"

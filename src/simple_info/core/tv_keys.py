@@ -34,10 +34,12 @@ KEY_NAMES = {
     **{512 + n: f"KEY_NUMERIC_{n}" for n in range(10)},
 }
 
-# What each button does on the board. The arrows aren't here: they already
-# reach the app through the desktop (◀ ▶ switch boards).
+# What each button does on the board. The arrows reach the app through the
+# desktop too, but only while its window has the keyboard focus, so they're
+# read here as well (a press that arrives both ways is only acted on once).
 ACTIONS = {
-    "KEY_OK": "next", "KEY_SELECT": "next", "KEY_CHANNELUP": "next", "KEY_NEXTSONG": "next",
+    "KEY_LEFT": "previous", "KEY_RIGHT": "next", "KEY_UP": "page_previous", "KEY_DOWN": "page_next",
+    "KEY_OK": "next", "KEY_SELECT": "next", "KEY_ENTER": "next", "KEY_KPENTER": "next", "KEY_CHANNELUP": "next", "KEY_NEXTSONG": "next",
     "KEY_EXIT": "previous", "KEY_BACK": "previous", "KEY_CHANNELDOWN": "previous", "KEY_PREVIOUSSONG": "previous",
     "KEY_INFO": "refresh", "KEY_EPG": "refresh",
     "KEY_PLAYPAUSE": "hold", "KEY_PAUSE": "hold", "KEY_PLAY": "hold",
