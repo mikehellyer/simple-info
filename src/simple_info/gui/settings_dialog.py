@@ -188,10 +188,10 @@ class SettingsDialog(QDialog):
         self._train_filter = StationPicker(runner, settings.train_filter_name, settings.train_filter_crs,
                                            "Optional: only trains calling at…", optional=True)
         tl.addRow("Only trains to/from", self._train_filter)
-        self._rail_token = QLineEdit(settings.rail_token)
-        self._rail_token.setPlaceholderText("optional — not needed")
-        self._rail_token.setToolTip("A National Rail (Darwin OpenLDBWS) access token, if you have your own")
-        tl.addRow("National Rail token", self._rail_token)
+        credit = QLabel("Live times from National Rail Enquiries, through the free Huxley 2 service — no account needed.")
+        credit.setStyleSheet("color: gray;")
+        credit.setWordWrap(True)
+        tl.addRow("", credit)
         trains_tab.addWidget(trains)
 
         # Boards
@@ -456,7 +456,6 @@ class SettingsDialog(QDialog):
             "tv_remote": self._tv_remote.isChecked(),
             "graphics": self._graphics.currentData(),
             "train_mode": self._train_mode.currentData(),
-            "rail_token": self._rail_token.text().strip(),
             "currency_base": self._base.currentData(),
             "currency_codes": ",".join(self._chosen_codes()),
             "currency_crypto": self._crypto.isChecked(),

@@ -71,7 +71,7 @@ def test_parse_copes_with_missing_and_odd_fields():
 
 def test_board_url():
     assert tr.board_url("kgx", tr.DEPARTURES, 10, base_url="https://h") == "https://h/departures/KGX/10?expand=true"
-    assert tr.board_url("EDB", tr.ARRIVALS, 5, "yrk", "abc", "https://h/") == "https://h/arrivals/EDB/from/YRK/5?expand=true&accessToken=abc"
+    assert tr.board_url("EDB", tr.ARRIVALS, 5, "yrk", "https://h/") == "https://h/arrivals/EDB/from/YRK/5?expand=true"
     assert tr.board_url("EDB", tr.DEPARTURES, 5, "yrk", base_url="https://h").startswith("https://h/departures/EDB/to/YRK/5")
 
 

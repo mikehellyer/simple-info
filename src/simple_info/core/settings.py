@@ -30,8 +30,6 @@ class Settings:
     train_mode: str = "departures"  # "departures", "arrivals" or "both"
     train_filter_name: str = ""
     train_filter_crs: str = ""
-    # A National Rail (Darwin) access token, if you have one: not needed.
-    rail_token: str = ""
 
     # The currency board: what one of `currency_base` buys in each of
     # `currency_codes` (comma-separated, shown in that order), and whether

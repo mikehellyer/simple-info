@@ -139,7 +139,6 @@ class TrainBoard(Board):
         self.mode = tr.DEPARTURES
         self.filter_crs = ""
         self.filter_name = ""
-        self.token = ""
         self.clock_24h = True
         self.boards: dict[str, tr.TrainBoard] = {}
         self.status = ""
@@ -152,9 +151,9 @@ class TrainBoard(Board):
 
     def configure(self, settings: Settings) -> None:
         self.clock_24h = settings.clock_24h
-        wanted = (settings.train_station_crs, settings.train_mode, settings.train_filter_crs, settings.rail_token)
-        if wanted != (self.crs, self.mode, self.filter_crs, self.token):
-            self.crs, self.mode, self.filter_crs, self.token = wanted
+        wanted = (settings.train_station_crs, settings.train_mode, settings.train_filter_crs)
+        if wanted != (self.crs, self.mode, self.filter_crs):
+            self.crs, self.mode, self.filter_crs = wanted
             self.boards = {}
             self.offline = False
             self.status = "Fetching the trains…" if self.crs else ""
@@ -169,10 +168,10 @@ class TrainBoard(Board):
     def fetch_job(self):
         if not self.crs:
             return None
-        crs, kinds, filter_crs, token = self.crs, self._kinds(), self.filter_crs, self.token
+        crs, kinds, filter_crs = self.crs, self._kinds(), self.filter_crs
 
         def job():
-            return {kind: tr.fetch_board(crs, kind, 10, filter_crs, token) for kind in kinds}
+            return {kind: tr.fetch_board(crs, kind, 10, filter_crs) for kind in kinds}
 
         return job
 
@@ -239,6 +238,11 @@ class TrainBoard(Board):
         p.setPen(QPen(rgb(0, 0, 0), 3))
         p.setBrush(SCREEN)
         p.drawRoundedRect(DISPLAY, 6, 6)
+        # the credit National Rail asks for, as a maker's plate on the case's bottom edge
+        p.setFont(font(14, QFont.DemiBold))
+        p.setPen(rgb(200, 204, 212))
+        p.drawText(QRectF(CASE.left(), DISPLAY.bottom() + 1, CASE.width() - 30, CASE.bottom() - DISPLAY.bottom() - 2),
+                   Qt.AlignRight | Qt.AlignVCenter, "Powered by National Rail Enquiries")
 
     def _place_heading(self, kind: str) -> str:
         return "Destination" if kind == tr.DEPARTURES else "From"

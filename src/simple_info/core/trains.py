@@ -2,8 +2,10 @@
 
 The data is National Rail's live departure boards (Darwin), read through
 Huxley 2 (https://huxley2.azurewebsites.net), a free public service that
-turns them into plain JSON and needs no sign-up. Anyone with their own
-National Rail access token can put it in Settings; it's passed along.
+turns them into plain JSON and needs no sign-up. (It's someone else's
+server, so nothing private is ever sent to it: only station codes.)
+National Rail asks for its data to be credited "Powered by National Rail
+Enquiries", which the board shows.
 
 Everything that touches the network returns None (or []) on failure
 rather than raising: the board keeps showing the last trains it had.
@@ -183,22 +185,19 @@ def _get_json(url: str):
         return None
 
 
-def board_url(crs: str, kind: str, rows: int = 10, filter_crs: str = "", token: str = "", base_url: str = HUXLEY_URL) -> str:
+def board_url(crs: str, kind: str, rows: int = 10, filter_crs: str = "", base_url: str = HUXLEY_URL) -> str:
     path = f"{base_url.rstrip('/')}/{kind}/{urllib.parse.quote(crs.upper())}"
     if filter_crs:
         path += f"/{'to' if kind == DEPARTURES else 'from'}/{urllib.parse.quote(filter_crs.upper())}"
     path += f"/{rows}"
-    params = {"expand": "true"}
-    if token:
-        params["accessToken"] = token
-    return f"{path}?{urllib.parse.urlencode(params)}"
+    return f"{path}?{urllib.parse.urlencode({'expand': 'true'})}"
 
 
-def fetch_board(crs: str, kind: str, rows: int = 10, filter_crs: str = "", token: str = "",
+def fetch_board(crs: str, kind: str, rows: int = 10, filter_crs: str = "",
                 base_url: str = HUXLEY_URL) -> Optional[TrainBoard]:
     if not re.fullmatch(r"[A-Za-z]{3}", crs or ""):
         return None
-    data = _get_json(board_url(crs, kind, rows, filter_crs, token, base_url))
+    data = _get_json(board_url(crs, kind, rows, filter_crs, base_url))
     if not isinstance(data, dict) or "locationName" not in data:
         return None
     try:
