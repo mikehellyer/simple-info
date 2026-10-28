@@ -81,3 +81,17 @@ def test_download_only_when_the_copy_on_disk_is_old(tmp_path):
 def test_parse_time():
     assert tv.parse_time("20261020224000 +0100") == datetime(2026, 10, 20, 21, 40, tzinfo=timezone.utc)
     assert tv.parse_time("nonsense") is None
+
+
+# (as in the real guide, every channel comes before the first programme)
+GUIDE_WITH_RADIO = GUIDE.replace(b"  <programme ", b"""  <channel id="BBCRedButton1.uk"><display-name lang="en">BBC Red Button 1</display-name></channel>
+  <channel id="ClassicFM.uk"><display-name lang="en">Classic FM</display-name></channel>
+  <programme start="20261021140000 +0100" stop="20261021160000 +0100" channel="ClassicFM.uk"><title>Anne-Marie Minhall</title></programme>
+  <programme """, 1)
+
+
+def test_radio_stations_are_listed_on_their_own(tmp_path):
+    path = tmp_path / "guide.xml"
+    path.write_bytes(GUIDE_WITH_RADIO)
+    assert [c.short_name for c in tv.read_channels(path, radio=True)] == ["BBC Radio Scotland", "Capital", "Classic FM"]
+    assert "BBC Red Button 1" in [c.short_name for c in tv.read_channels(path)]  # (TV, though its id starts BBCR)

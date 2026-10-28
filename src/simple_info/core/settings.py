@@ -57,6 +57,10 @@ class Settings:
     # one page each in this order).
     news_feeds: str = "bbc/top,bbc/scotland,bbc/ne-scotland,bbc/world"
 
+    # The radio board: the stations on it (ids from the Freeview guide,
+    # comma-separated, in this order).
+    radio_channels: str = "BBCRScotland.uk,BBCR1.uk,BBCR2.uk,BBCR3.uk,BBCR4FM.uk,BBCR5L.uk,BBCR6M.uk,ClassicFM.uk"
+
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
     # Move on to the next board by itself every so often.

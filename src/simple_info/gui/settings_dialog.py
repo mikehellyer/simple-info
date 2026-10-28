@@ -106,6 +106,36 @@ class StationPicker(QWidget):
             self._label.setText("None: every train" if self._optional else "No station chosen yet — search above")
 
 
+class ChannelList(QListWidget):
+    """TV channels or radio stations to tick and drag into order. Shows the
+    chosen ones (by id) at once, then the full list once the guide's read."""
+
+    def __init__(self, chosen: list[str]):
+        super().__init__()
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setMinimumHeight(300)
+        self._chosen = chosen
+        self.fill([tvmod.Channel(c, c) for c in chosen])
+
+    def ticked(self) -> list[str]:
+        return [self.item(i).data(Qt.UserRole) for i in range(self.count()) if self.item(i).checkState() == Qt.Checked]
+
+    def fill(self, channels: list) -> None:
+        if not channels:
+            return
+        if self.count():  # keep any ticks and order already changed
+            self._chosen = self.ticked()
+        by_id = {c.id: c for c in channels}
+        self.clear()
+        for cid in self._chosen + [c.id for c in channels if c.id not in self._chosen]:
+            channel = by_id.get(cid, tvmod.Channel(cid, cid))
+            item = QListWidgetItem(channel.short_name if channel.name != cid else cid)
+            item.setData(Qt.UserRole, cid)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
+            item.setCheckState(Qt.Checked if cid in self._chosen else Qt.Unchecked)
+            self.addItem(item)
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: Settings, runner: BackgroundRunner, parent=None, cache_dir=None, remote_url=None):
         super().__init__(parent)
@@ -350,18 +380,27 @@ class SettingsDialog(QDialog):
         tv_tab = self._tab("TV")
         tv_box = QGroupBox("TV board (Freeview channels)")
         tvl = QVBoxLayout(tv_box)
-        self._tv_list = QListWidget()
-        self._tv_list.setDragDropMode(QAbstractItemView.InternalMove)
-        self._tv_list.setMinimumHeight(300)
+        self._tv_list = ChannelList([c for c in settings.tv_channels.split(",") if c])
         tvl.addWidget(self._tv_list)
         tv_hint = QLabel("Tick the channels to show, and drag them into your order; ten fit on a page.")
         tv_hint.setStyleSheet("color: gray;")
         tvl.addWidget(tv_hint)
         tv_tab.addWidget(tv_box)
-        self._tv_chosen = [c for c in settings.tv_channels.split(",") if c]
-        self._fill_channels([tvmod.Channel(c, c) for c in self._tv_chosen])  # until the full list is read
         self._runner.run(lambda: tvmod.read_channels(tvmod.guide_path(self._cache_dir)) if self._cache_dir else [],
-                         self._fill_channels, lambda error: None)
+                         self._tv_list.fill, lambda error: None)
+
+        # Radio
+        radio_tab = self._tab("Radio")
+        radio_box = QGroupBox("Radio board (Freeview radio stations)")
+        rbl = QVBoxLayout(radio_box)
+        self._radio_list = ChannelList([c for c in settings.radio_channels.split(",") if c])
+        rbl.addWidget(self._radio_list)
+        radio_hint = QLabel("Tick the stations to show, and drag them into your order; ten fit on a page.")
+        radio_hint.setStyleSheet("color: gray;")
+        rbl.addWidget(radio_hint)
+        radio_tab.addWidget(radio_box)
+        self._runner.run(lambda: tvmod.read_channels(tvmod.guide_path(self._cache_dir), radio=True) if self._cache_dir else [],
+                         self._radio_list.fill, lambda error: None)
         # News
         news_tab = self._tab("News")
         news_box = QGroupBox("News board")
@@ -383,7 +422,7 @@ class SettingsDialog(QDialog):
         news_tab.addWidget(news_box)
         bar = self._tabs.tabBar()
         bar.moveTab(self._tabs.indexOf(phone_tab.parentWidget()), self._tabs.count() - 1)  # (made early, shown last)
-        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab, news_tab, phone_tab):
+        for tab in (general, weather_tab, trains_tab, currency_tab, sport_tab, tv_tab, radio_tab, news_tab, phone_tab):
             tab.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -470,23 +509,6 @@ class SettingsDialog(QDialog):
         else:
             self._favourites.pop(key, None)
 
-    def _fill_channels(self, channels: list) -> None:
-        if not channels:
-            return
-        # keep any ticks and order the viewer has already changed
-        if self._tv_list.count():
-            self._tv_chosen = [self._tv_list.item(i).data(Qt.UserRole) for i in range(self._tv_list.count())
-                               if self._tv_list.item(i).checkState() == Qt.Checked]
-        by_id = {c.id: c for c in channels}
-        self._tv_list.clear()
-        for cid in self._tv_chosen + [c.id for c in channels if c.id not in self._tv_chosen]:
-            channel = by_id.get(cid, tvmod.Channel(cid, cid))
-            item = QListWidgetItem(channel.short_name if channel.name != cid else cid)
-            item.setData(Qt.UserRole, cid)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
-            item.setCheckState(Qt.Checked if cid in self._tv_chosen else Qt.Unchecked)
-            self._tv_list.addItem(item)
-
     def _test_rail_key(self) -> None:
         key = self._rail_key.text().strip()
         if not key:
@@ -547,8 +569,8 @@ class SettingsDialog(QDialog):
             "page_seconds": self._page_seconds.value(),
             "news_feeds": ",".join(self._feeds.item(i).data(Qt.UserRole) for i in range(self._feeds.count())
                                    if self._feeds.item(i).checkState() == Qt.Checked),
-            "tv_channels": ",".join(self._tv_list.item(i).data(Qt.UserRole) for i in range(self._tv_list.count())
-                                    if self._tv_list.item(i).checkState() == Qt.Checked),
+            "tv_channels": ",".join(self._tv_list.ticked()),
+            "radio_channels": ",".join(self._radio_list.ticked()),
             "sport_favourites": sp.format_favourites(self._favourites),
         }
         station, filter_ = self._station.station, self._train_filter.station

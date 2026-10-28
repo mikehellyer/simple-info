@@ -57,7 +57,16 @@ Boards so far:
    200 (regional BBC One, ITV and STV included). It starts with the main
    channels as seen in the north of Scotland.
 
-6. **News.** A page for each news feed you follow: the lead story with its
+6. **Radio.** The same kind of guide for your radio stations, four hours
+   across (radio programmes run longer), on the front of an old valve radio:
+   a walnut cabinet, woven speaker cloth, and an amber tuning dial along the
+   bottom with its needle drifting slowly. Choose and order the stations in
+   Settings → Radio, from about 75: BBC national and local stations
+   (Radio Scotland, nan Gàidheal, Orkney, Shetland…), Classic FM, Smooth,
+   Capital, Heart, Planet Rock, LBC, talkSPORT and more. It shares the TV
+   board's guide, so nothing extra is downloaded.
+
+7. **News.** A page for each news feed you follow: the lead story with its
    picture and summary, and the next six headlines with theirs, each
    saying how long ago it was published. A red **LATEST** ticker along
    the bottom runs through the newest headlines from all your feeds. It
@@ -82,7 +91,7 @@ Boards so far:
 | P | Preview each kind of weather (cycles back to live) |
 | T | Preview dawn / day / dusk / night (cycles back to live) |
 | Q | Show the phone remote's QR code |
-| S | Settings: units, display, weather location, train station, currencies, sport, TV channels, news |
+| S | Settings: units, display, weather location, train station, currencies, sport, TV channels, radio stations, news |
 | Right-click | All of the above as a menu |
 
 **Pausing.** Press **H** (or the remote's play/pause) to keep what's on

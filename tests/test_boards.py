@@ -350,3 +350,26 @@ def test_day_headings_say_when_a_fixture_is_a_week_or_more_away():
     assert _day_label(datetime(2026, 10, 24, 15, 0), now) == "Tomorrow"
     assert _day_label(datetime(2026, 10, 27, 19, 45), now) == "Tuesday 27 October"
     assert _day_label(datetime(2026, 10, 31, 15, 0), now) == "Saturday 31 October  ·  in 8 days"
+
+
+def test_radio_board_shows_the_chosen_stations_four_hours_across(app, tmp_path, monkeypatch):
+    from datetime import datetime, timezone
+
+    from simple_info.core import tv
+    from simple_info.gui.boards.radio import RadioBoard, station_colour
+
+    from test_tv import GUIDE_WITH_RADIO
+
+    (tmp_path / "tv-guide.xml").write_bytes(GUIDE_WITH_RADIO)
+    monkeypatch.setattr(tv, "download_guide", lambda path, **k: path.exists())
+    board = RadioBoard(tmp_path)
+    board.configure(Settings(radio_channels="ClassicFM.uk,BBCRScotland.uk"))
+    assert board.channel_ids == ["ClassicFM.uk", "BBCRScotland.uk"] and board.window_minutes == 240
+    board.on_fetched(tv.fetch(tmp_path, board.channel_ids, datetime(2026, 10, 21, 13, 40, tzinfo=timezone.utc)))
+    assert [c.id for c in board.listings.channels] == ["ClassicFM.uk", "BBCRScotland.uk"]
+    assert station_colour("BBC Radio 1") != station_colour("Classic FM")
+    stage = Stage([board])
+    stage.resize(800, 450)
+    for _ in range(2):
+        stage._tick()
+    assert not stage.grab().isNull()

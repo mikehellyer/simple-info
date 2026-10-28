@@ -29,6 +29,7 @@ from simple_info.core.updater import API_TIMEOUT_SECONDS, check_for_update
 from simple_info.gui.boards.base import Board
 from simple_info.gui.boards.currency import CurrencyBoard
 from simple_info.gui.boards.news import NewsBoard
+from simple_info.gui.boards.radio import RadioBoard
 from simple_info.gui.boards.sport import SportBoard
 from simple_info.gui.boards.tv import TvBoard
 from simple_info.gui.boards.trains import TrainBoard
@@ -76,7 +77,8 @@ class MainWindow(QMainWindow):
         self._sport = SportBoard()
         self._tv = TvBoard(cache)
         self._news = NewsBoard()
-        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport, self._tv, self._news]
+        self._radio = RadioBoard(cache)
+        self._boards: list[Board] = [self._weather, self._trains, self._currency, self._sport, self._tv, self._radio, self._news]
 
         central = QWidget()
         layout = QVBoxLayout(central)

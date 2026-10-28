@@ -68,11 +68,18 @@ class TvBoard(Board):
     refresh_seconds = 30 * 60  # (the guide itself is only downloaded every few hours)
     retry_seconds = 5 * 60
 
+    heading = "TV guide"
+    window_minutes = WINDOW_MINUTES
+    channels_setting = "tv_channels"  # the Settings field listing this board's channels
+    panel = (rgb(10, 10, 26, 200), rgb(6, 6, 16, 215))  # the grid's panel, top and bottom
+    on_now = ON_NOW  # what's on now
+    default_channels = tv.DEFAULT_CHANNELS
+
     def __init__(self, cache_dir: Path):
         super().__init__()
-        self.screen = Broadcast()
+        self.screen = self.make_background()
         self.cache_dir = cache_dir
-        self.channel_ids: list[str] = list(tv.DEFAULT_CHANNELS)
+        self.channel_ids: list[str] = list(self.default_channels)
         self.listings: Optional[tv.Listings] = None
         self.page_seconds = 20.0
         self.clock_24h = True
@@ -84,12 +91,18 @@ class TvBoard(Board):
     def configure(self, settings: Settings) -> None:
         self.clock_24h = settings.clock_24h
         self.page_seconds = float(settings.page_seconds)
-        ids = [c for c in settings.tv_channels.split(",") if c]
+        ids = [c for c in getattr(settings, self.channels_setting).split(",") if c]
         if ids != self.channel_ids:
             self.channel_ids = ids
             self.set_page(self.page)
             self.fetch_now()
         self.dirty = True
+
+    def make_background(self):
+        return Broadcast()
+
+    def badge_for(self, name: str) -> QColor:
+        return badge_colour(name)
 
     def page_count(self) -> int:
         return max(1, math.ceil(len(self.channel_ids) / ROWS_PER_PAGE))
@@ -156,7 +169,7 @@ class TvBoard(Board):
     def _paint_header(self, p: QPainter, now: datetime) -> None:
         p.setFont(font(46, QFont.DemiBold))
         p.setPen(WHITE)
-        p.drawText(QRectF(54, 22, 1000, 60), Qt.AlignLeft | Qt.AlignVCenter, "TV guide")
+        p.drawText(QRectF(54, 22, 1000, 60), Qt.AlignLeft | Qt.AlignVCenter, self.heading)
         bits = [f"{now:%A} {now.day} {now:%B}", "Freeview"]
         if self.listings is not None:
             got = datetime.fromtimestamp(self.listings.guide_date)
@@ -182,26 +195,27 @@ class TvBoard(Board):
     def _paint_grid(self, p: QPainter, now: datetime) -> None:
         listings = self.listings
         start = now.replace(minute=0 if now.minute < 30 else 30, second=0, microsecond=0)
-        end = start + timedelta(minutes=WINDOW_MINUTES)
+        end = start + timedelta(minutes=self.window_minutes)
         left = GRID.left() + CHANNEL_W
-        per_minute = (GRID.right() - left) / WINDOW_MINUTES
+        per_minute = (GRID.right() - left) / self.window_minutes
 
         def x_at(when: datetime) -> float:
             return left + (when - start).total_seconds() / 60 * per_minute
 
         # the panel behind it all
         p.setPen(QPen(rgb(255, 255, 255, 40), 1))
-        p.setBrush(vgrad(GRID.top(), GRID.bottom(), rgb(10, 10, 26, 200), rgb(6, 6, 16, 215)))
+        p.setBrush(vgrad(GRID.top(), GRID.bottom(), *self.panel))
         p.drawRoundedRect(GRID, 18, 18)
 
         # times along the top, every half hour
         p.setFont(font(19, QFont.DemiBold))
-        for i in range(WINDOW_MINUTES // 30 + 1):
-            t = start + timedelta(minutes=30 * i)
+        step = 30 if self.window_minutes <= 180 else 60  # a time along the top every half hour (or hour)
+        for i in range(self.window_minutes // step + 1):
+            t = start + timedelta(minutes=step * i)
             x = x_at(t)
             p.setPen(QPen(rgb(255, 255, 255, 28), 1))
             p.drawLine(QPointF(x, GRID.top() + TIMES_H), QPointF(x, GRID.bottom() - 10))
-            if i < WINDOW_MINUTES // 30:
+            if i < self.window_minutes // step:
                 p.setPen(DIM)
                 p.drawText(QRectF(x + 8, GRID.top() + 4, 150, TIMES_H - 4), Qt.AlignLeft | Qt.AlignVCenter, self._time(t))
 
@@ -233,7 +247,7 @@ class TvBoard(Board):
         p.drawEllipse(QPointF(x, GRID.top() + TIMES_H - 4), 5, 5)
 
     def _channel_badge(self, p: QPainter, channel: tv.Channel, rect: QRectF) -> None:
-        colour = badge_colour(channel.short_name)
+        colour = self.badge_for(channel.short_name)
         p.setPen(QPen(rgb(255, 255, 255, 60), 1))
         p.setBrush(vgrad(rect.top(), rect.bottom(), colour.lighter(118), colour.darker(125)))
         p.drawRoundedRect(rect, 10, 10)
@@ -249,7 +263,7 @@ class TvBoard(Board):
         on_now = prog.on_at(now)
         p.setPen(Qt.NoPen)
         if on_now:
-            p.setBrush(vgrad(rect.top(), rect.bottom(), alpha(ON_NOW, 220), alpha(ON_NOW.darker(130), 220)))
+            p.setBrush(vgrad(rect.top(), rect.bottom(), alpha(self.on_now, 220), alpha(self.on_now.darker(130), 220)))
         else:
             p.setBrush(LATER)
         p.drawRoundedRect(rect, 8, 8)

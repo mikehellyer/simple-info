@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gzip
 import os
+import threading
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -26,6 +27,10 @@ from simple_info.core.http import SSL_CONTEXT
 GUIDE_URL = "https://raw.githubusercontent.com/dp247/Freeview-EPG/master/epg.xml"
 TIMEOUT_SECONDS = 60
 MAX_AGE_SECONDS = 6 * 3600  # download a fresh guide when the copy on disk is older than this
+
+# A sensible first set of radio stations: BBC Radio Scotland and the national stations.
+DEFAULT_RADIO = ["BBCRScotland.uk", "BBCR1.uk", "BBCR2.uk", "BBCR3.uk", "BBCR4FM.uk", "BBCR5L.uk", "BBCR6M.uk",
+                 "ClassicFM.uk"]
 
 # A sensible first set: the main channels, as seen in the north of Scotland.
 DEFAULT_CHANNELS = ["BBCOneScotHD.uk", "BBCTwoHD.uk", "STVNorth.uk", "Channel4Scotland.uk", "5.uk", "BBCScotland.uk",
@@ -49,7 +54,8 @@ class Channel:
     @property
     def is_radio(self) -> bool:
         lowered = self.name.lower()
-        return self.id.startswith("BBCR") or "radio" in lowered or lowered in RADIO_NAMES
+        bbc_radio = self.id.startswith("BBCR") and not self.id.startswith("BBCRed")  # (BBC Red Button is TV)
+        return bbc_radio or "radio" in lowered or lowered in RADIO_NAMES
 
 
 RADIO_NAMES = {"capital", "capital xtra", "classic fm", "heart 80s", "heart 90s", "heart dance", "heart radio", "lbc",
@@ -103,9 +109,17 @@ def guide_path(cache_dir: Path) -> Path:
     return cache_dir / "tv-guide.xml"
 
 
+_download_lock = threading.Lock()  # (the TV and radio boards share the guide)
+
+
 def download_guide(path: Path, max_age: float = MAX_AGE_SECONDS, force: bool = False) -> bool:
     """Fetch a fresh guide if the one on disk is old (or missing). Returns
     whether there's a usable guide on disk afterwards."""
+    with _download_lock:
+        return _download_guide(path, max_age, force)
+
+
+def _download_guide(path: Path, max_age: float, force: bool) -> bool:
     try:
         age = time.time() - path.stat().st_mtime
     except OSError:
@@ -129,14 +143,14 @@ def download_guide(path: Path, max_age: float = MAX_AGE_SECONDS, force: bool = F
         return age is not None
 
 
-def read_channels(path: Path) -> list[Channel]:
-    """Every TV channel in the guide (radio stations left out), by name."""
+def read_channels(path: Path, radio: bool = False) -> list[Channel]:
+    """Every TV channel in the guide (or, with radio, every radio station), by name."""
     channels = []
     try:
         for _, el in ET.iterparse(path, events=("end",)):
             if el.tag == "channel":
                 c = Channel(el.get("id") or "", (el.findtext("display-name") or el.get("id") or "").strip())
-                if c.id and not c.is_radio:
+                if c.id and c.is_radio == radio:
                     channels.append(c)
                 el.clear()
             elif el.tag == "programme":
