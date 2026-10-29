@@ -373,3 +373,26 @@ def test_radio_board_shows_the_chosen_stations_four_hours_across(app, tmp_path, 
     for _ in range(2):
         stage._tick()
     assert not stage.grab().isNull()
+
+
+def test_radio_board_mixes_freeview_and_local_stations(app, tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    from simple_info.core import bauer, tv
+    from simple_info.gui.boards.radio import RadioBoard
+
+    from test_tv import GUIDE_WITH_RADIO
+
+    (tmp_path / "tv-guide.xml").write_bytes(GUIDE_WITH_RADIO)
+    monkeypatch.setattr(tv, "download_guide", lambda path, **k: path.exists())
+    now = datetime(2026, 10, 21, 13, 40, tzinfo=timezone.utc)
+    real_fetch = tv.fetch
+    monkeypatch.setattr(tv, "fetch", lambda cache, ids, when=None: real_fetch(cache, ids, now))
+    show = tv.Programme(now - timedelta(hours=1), now + timedelta(hours=2), "Boogie in the Morning")
+    monkeypatch.setattr(bauer, "fetch_schedule", lambda cid, today=None: [show] if cid == "bauer:mf1" else None)
+    board = RadioBoard(tmp_path)
+    board.configure(Settings(radio_channels="bauer:mf1,ClassicFM.uk,bauer:ghs"))
+    listings = board.fetch_job()()
+    assert [c.id for c in listings.channels] == ["bauer:mf1", "ClassicFM.uk"]  # (ghs: no schedule this time)
+    assert listings.channels[0].name == "MFR" and listings.on_now("bauer:mf1", now).title == "Boogie in the Morning"
+    assert board.on_fetched(listings) is True

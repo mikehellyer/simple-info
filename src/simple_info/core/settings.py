@@ -59,7 +59,9 @@ class Settings:
 
     # The radio board: the stations on it (ids from the Freeview guide,
     # comma-separated, in this order).
-    radio_channels: str = "BBCRScotland.uk,BBCR1.uk,BBCR2.uk,BBCR3.uk,BBCR4FM.uk,BBCR5L.uk,BBCR6M.uk,ClassicFM.uk"
+    # ("bauer:…" are local stations from Bauer's schedules: MFR, and MFR 2.)
+    radio_channels: str = ("BBCRScotland.uk,bauer:mf1,bauer:ghs,BBCR1.uk,BBCR2.uk,BBCR3.uk,BBCR4FM.uk,BBCR5L.uk,"
+                           "BBCR6M.uk,ClassicFM.uk")
 
     # The board showing when the app was last closed, so it opens there again.
     board: str = "weather"
@@ -99,6 +101,13 @@ _RANGES = {
     "page_seconds": (5, 600),
     "remote_port": (1024, 65535),
     "board_page": (0, 99),
+}
+
+
+# Earlier defaults, so a list nobody has changed moves on to the new default
+# when one is added to (but a list someone has chosen is left alone).
+_OLD_DEFAULTS = {
+    "radio_channels": ["BBCRScotland.uk,BBCR1.uk,BBCR2.uk,BBCR3.uk,BBCR4FM.uk,BBCR5L.uk,BBCR6M.uk,ClassicFM.uk"],
 }
 
 
@@ -156,6 +165,9 @@ class SettingsStore:
         for name in ("train_station_crs", "train_filter_crs"):
             code = getattr(self.settings, name)
             setattr(self.settings, name, code.upper() if len(code) == 3 and code.isalpha() else "")
+        for name, olds in _OLD_DEFAULTS.items():
+            if getattr(self.settings, name) in olds:
+                setattr(self.settings, name, getattr(defaults, name))
         if not (self.settings.remote_pin.isdigit() and len(self.settings.remote_pin) <= 8):
             self.settings.remote_pin = ""
         if self.settings.location_mode == "manual" and not self.settings.location_name:

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from simple_info.core import bauer
 from simple_info.core import currency as cx
 from simple_info.core import news as nw
 from simple_info.core import sports as sp
@@ -115,7 +116,7 @@ class ChannelList(QListWidget):
         self.setDragDropMode(QAbstractItemView.InternalMove)
         self.setMinimumHeight(300)
         self._chosen = chosen
-        self.fill([tvmod.Channel(c, c) for c in chosen])
+        self.fill([tvmod.Channel(c, bauer.NAMES.get(c, c)) for c in chosen])
 
     def ticked(self) -> list[str]:
         return [self.item(i).data(Qt.UserRole) for i in range(self.count()) if self.item(i).checkState() == Qt.Checked]
@@ -399,7 +400,8 @@ class SettingsDialog(QDialog):
         radio_hint.setStyleSheet("color: gray;")
         rbl.addWidget(radio_hint)
         radio_tab.addWidget(radio_box)
-        self._runner.run(lambda: tvmod.read_channels(tvmod.guide_path(self._cache_dir), radio=True) if self._cache_dir else [],
+        self._runner.run(lambda: bauer.channels() + (tvmod.read_channels(tvmod.guide_path(self._cache_dir), radio=True)
+                                                     if self._cache_dir else []),
                          self._radio_list.fill, lambda error: None)
         # News
         news_tab = self._tab("News")

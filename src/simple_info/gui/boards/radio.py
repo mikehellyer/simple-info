@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 import zlib
 from pathlib import Path
 from typing import Optional
@@ -18,7 +19,7 @@ from typing import Optional
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
 
-from simple_info.core import tv
+from simple_info.core import bauer, tv
 from simple_info.gui.boards.station import cover
 from simple_info.gui.boards.tv import TvBoard
 from simple_info.gui.paint import H, W, alpha, radial, rgb, vgrad
@@ -35,7 +36,8 @@ STATIONS = [
     ("BBC", rgb(60, 60, 70)), ("Classic FM", rgb(30, 60, 130)), ("Capital", rgb(30, 110, 200)),
     ("Smooth", rgb(120, 40, 120)), ("Heart", rgb(210, 20, 50)), ("Planet Rock", rgb(30, 30, 30)),
     ("Radio X", rgb(40, 40, 40)), ("talkSPORT", rgb(200, 30, 40)), ("LBC", rgb(20, 70, 160)),
-    ("Virgin", rgb(200, 0, 30)),
+    ("Virgin", rgb(200, 0, 30)), ("MFR 2", rgb(0, 150, 190)), ("MFR", rgb(150, 30, 120)),
+    ("Northsound", rgb(230, 80, 20)),
 ]
 
 
@@ -169,6 +171,30 @@ class RadioBoard(TvBoard):
 
     def make_background(self):
         return ValveRadio()
+
+    def fetch_job(self):
+        """The Freeview guide's stations, plus the local ones it hasn't (MFR…)
+        from Bauer's schedules."""
+        if not self.channel_ids:
+            return None
+        cache_dir, ids = self.cache_dir, list(self.channel_ids)
+
+        def job():
+            freeview = [i for i in ids if not bauer.is_bauer(i)]
+            listings = tv.fetch(cache_dir, freeview) if freeview else tv.Listings([], {}, time.time())
+            local = {i: bauer.fetch_schedule(i) for i in ids if bauer.is_bauer(i)}
+            if listings is None and all(v is None for v in local.values()):
+                return None
+            listings = listings or tv.Listings([], {}, time.time())
+            by_id = {c.id: c for c in listings.channels}
+            for cid, programmes in local.items():
+                if programmes is not None and cid in bauer.NAMES:
+                    by_id[cid] = tv.Channel(cid, bauer.NAMES[cid])
+                    listings.programmes[cid] = programmes
+            listings.channels = [by_id[i] for i in ids if i in by_id]
+            return listings
+
+        return job
 
     def badge_for(self, name: str) -> QColor:
         return station_colour(name)

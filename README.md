@@ -63,8 +63,11 @@ Boards so far:
    bottom with its needle drifting slowly. Choose and order the stations in
    Settings → Radio, from about 75: BBC national and local stations
    (Radio Scotland, nan Gàidheal, Orkney, Shetland…), Classic FM, Smooth,
-   Capital, Heart, Planet Rock, LBC, talkSPORT and more. It shares the TV
-   board's guide, so nothing extra is downloaded.
+   Capital, Heart, Planet Rock, LBC, talkSPORT and more, plus local
+   stations that aren't on Freeview: **MFR**, **MFR 2** (now Greatest Hits
+   Radio for the North of Scotland) and Northsound 1, from Bauer's own
+   schedules. MFR and MFR 2 are on to begin with. The Freeview stations
+   share the TV board's guide, so nothing extra is downloaded for them.
 
 7. **News.** A page for each news feed you follow: the lead story with its
    picture and summary, and the next six headlines with theirs, each
@@ -180,7 +183,8 @@ Rail, and Huxley 2 becomes the fallback. The train
 board carries the "Powered by National Rail Enquiries" credit. Exchange rates are the European
 Central Bank's daily reference rates, read through
 [Frankfurter](https://frankfurter.dev/). Crypto prices come from
-[CoinGecko](https://www.coingecko.com/). News comes from the BBC News, Sky News and Guardian RSS feeds. TV listings are the open-source
+[CoinGecko](https://www.coingecko.com/). News comes from the BBC News, Sky News and Guardian RSS feeds. MFR's and
+the other Bauer stations' schedules come from Bauer's listening service. TV listings are the open-source
 [Freeview EPG](https://github.com/dp247/Freeview-EPG), rebuilt twice a day and
 downloaded at most every six hours. Sport comes from ESPN's public
 scoreboards, except Scottish League One and Two (which ESPN no longer

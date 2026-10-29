@@ -37,3 +37,13 @@ def test_start_fullscreen_is_off_by_default_and_remembered(tmp_path):
     assert store.settings.start_fullscreen is False
     store.update(start_fullscreen=True)
     assert SettingsStore(path).settings.start_fullscreen is True
+
+
+def test_an_unchanged_radio_list_moves_on_to_the_new_default_but_a_chosen_one_stays(tmp_path):
+    old = "BBCRScotland.uk,BBCR1.uk,BBCR2.uk,BBCR3.uk,BBCR4FM.uk,BBCR5L.uk,BBCR6M.uk,ClassicFM.uk"
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"radio_channels": old}))
+    s = SettingsStore(path).settings
+    assert s.radio_channels == Settings().radio_channels and "bauer:mf1" in s.radio_channels and "bauer:ghs" in s.radio_channels
+    path.write_text(json.dumps({"radio_channels": "ClassicFM.uk,BBCR4FM.uk"}))
+    assert SettingsStore(path).settings.radio_channels == "ClassicFM.uk,BBCR4FM.uk"

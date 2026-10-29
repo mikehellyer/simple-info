@@ -421,7 +421,8 @@ class MainWindow(QMainWindow):
             "crypto prices by <a href='https://www.coingecko.com/'>CoinGecko</a>.<br>"
             "Sport scores and tables from ESPN and BBC Sport.<br>"
             "TV listings from the open-source <a href='https://github.com/dp247/Freeview-EPG'>Freeview EPG</a>.<br>"
-            "News from the BBC News, Sky News and Guardian RSS feeds.<br><br>"
+            "News from the BBC News, Sky News and Guardian RSS feeds.<br>"
+            "MFR and other Bauer station schedules from Bauer (Rayo).<br><br>"
             "By Mike Hellyer, built with Claude Code.",
         )
 

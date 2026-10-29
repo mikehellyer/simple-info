@@ -29,7 +29,7 @@ TIMEOUT_SECONDS = 60
 MAX_AGE_SECONDS = 6 * 3600  # download a fresh guide when the copy on disk is older than this
 
 # A sensible first set of radio stations: BBC Radio Scotland and the national stations.
-DEFAULT_RADIO = ["BBCRScotland.uk", "BBCR1.uk", "BBCR2.uk", "BBCR3.uk", "BBCR4FM.uk", "BBCR5L.uk", "BBCR6M.uk",
+DEFAULT_RADIO = ["BBCRScotland.uk", "bauer:mf1", "bauer:ghs", "BBCR1.uk", "BBCR2.uk", "BBCR3.uk", "BBCR4FM.uk", "BBCR5L.uk", "BBCR6M.uk",
                  "ClassicFM.uk"]
 
 # A sensible first set: the main channels, as seen in the north of Scotland.

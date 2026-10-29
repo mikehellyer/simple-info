@@ -194,7 +194,8 @@ class TvBoard(Board):
 
     def _paint_grid(self, p: QPainter, now: datetime) -> None:
         listings = self.listings
-        start = now.replace(minute=0 if now.minute < 30 else 30, second=0, microsecond=0)
+        on_hour = self.window_minutes > 180  # (a longer guide is marked in hours, from the hour)
+        start = now.replace(minute=0 if now.minute < 30 or on_hour else 30, second=0, microsecond=0)
         end = start + timedelta(minutes=self.window_minutes)
         left = GRID.left() + CHANNEL_W
         per_minute = (GRID.right() - left) / self.window_minutes
